@@ -132,6 +132,13 @@ const STRUCTURED = new JSDOM(`<!doctype html><html lang="en"><head>
 </body></html>`, { url: "https://example.com/post" }).window.document;
 const s = Mantis.extract(STRUCTURED);
 test("returns structured article metadata", () => {
+  assert.strictEqual(s.object, "article");
+  assert.strictEqual(s.status, "completed");
+  assert.strictEqual(s.contentType, "article");
+  assert.ok(/^[0-9a-f]{8}$/.test(s.contentHash));
+  assert.ok(/^[0-9a-f]{8}$/.test(s.textHash));
+  assert.ok(/^\d{4}-\d{2}-\d{2}T/.test(s.capturedAt));
+  assert.deepStrictEqual(s.warnings, []);
   assert.strictEqual(s.url, "https://example.com/post");
   assert.strictEqual(s.canonicalUrl, "https://example.com/structured");
   assert.strictEqual(s.siteName, "Example Site");
@@ -142,22 +149,51 @@ test("returns structured article metadata", () => {
 });
 test("returns blocks, sections, and source selectors", () => {
   assert.ok(s.text.includes("Structured opening paragraph"));
-  assert.ok(s.blocks.some((block) => block.type === "heading" && block.text === "Data"));
+  assert.ok(s.blocks.some((block) => block.object === "block" && block.type === "heading" && block.text === "Data"));
   assert.ok(s.sections.some((section) => section.heading === "Data"));
   assert.ok(/^body/.test(s.blocks[0].source.selector));
+  assert.strictEqual(s.citations[0].object, "citation");
   assert.ok(s.citations[1].hrefs.includes("https://example.com/source"));
   assert.strictEqual(s.citations[0].offset, 0);
 });
 test("extracts article links and images", () => {
+  assert.strictEqual(s.links[0].object, "link");
+  assert.strictEqual(s.images[0].object, "image");
   assert.deepStrictEqual(s.links[0].href, "https://example.com/source");
   assert.deepStrictEqual(s.images[0].src, "https://example.com/chart.png");
   assert.strictEqual(s.images[0].alt, "Chart alt text");
 });
 test("extracts tables as rows and cells", () => {
+  assert.strictEqual(s.tables[0].object, "table");
   assert.strictEqual(s.tables[0].caption, "Quarterly results");
   assert.deepStrictEqual(s.tables[0].headers, ["Quarter", "Value"]);
   assert.deepStrictEqual(s.tables[0].rows[1], ["Q2", "12"]);
 });
+
+const EMPTY = new JSDOM("<html><head><title>Empty</title></head><body><nav>Only navigation</nav></body></html>").window.document;
+const empty = Mantis.extract(EMPTY);
+test("reports empty extraction status and warnings", () => {
+  assert.strictEqual(empty.status, "empty");
+  assert.ok(empty.warnings.includes("empty_content"));
+});
+
+const SELECTED_DOM = new JSDOM(`<!doctype html><html><body><article>
+<p>Selected paragraph text should be available as a first class selection object.</p>
+<p>Second paragraph keeps the article long enough for normal extraction.</p>
+</article></body></html>`);
+const selectedP = SELECTED_DOM.window.document.querySelector("p");
+SELECTED_DOM.window.getSelection = () => ({
+  anchorNode: selectedP.firstChild,
+  toString: () => "Selected paragraph text"
+});
+const selected = Mantis.extract(SELECTED_DOM.window.document);
+test("captures the current selection as structured data", () => {
+  assert.strictEqual(selected.selection.object, "selection");
+  assert.strictEqual(selected.selection.text, "Selected paragraph text");
+  assert.strictEqual(selected.selection.note, "");
+  assert.ok(selected.selection.source.selector.includes("p:nth-of-type(1)"));
+});
+
 test("renders Markdown and reader HTML", () => {
   const md = Mantis.toMarkdown(s);
   const html = Mantis.toHTML(s);

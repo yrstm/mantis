@@ -59,6 +59,16 @@
     return (s || "").replace(/\\/g, "\\\\").replace(/([`*_{}\[\]()#+.!|>~-])/g, "\\$1");
   }
 
+  function hashString(s) {
+    var h = 2166136261;
+    s = s || "";
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+    }
+    return ("0000000" + (h >>> 0).toString(16)).slice(-8);
+  }
+
   function signature(el) {
     return (el.id || "") + " " + (el.className && el.className.baseVal !== undefined ? "" : el.className || "") + " " +
       (el.getAttribute && (el.getAttribute("role") || "") + " " + (el.getAttribute("itemprop") || ""));
@@ -214,6 +224,7 @@
       used[key] = true;
       var type = BLOCK_TYPE[el.tagName] || "paragraph";
       out.push({
+        object: "block",
         type: type,
         tag: el.tagName,
         level: type === "heading" ? parseInt(el.tagName.slice(1), 10) : 0,
@@ -255,6 +266,7 @@
     var offset = 0;
     for (var i = 0; i < blocks.length; i++) {
       out.push({
+        object: "citation",
         text: blocks[i].text,
         selector: blocks[i].source.selector,
         hrefs: blocks[i].links.map(function (link) { return link.href; }),
@@ -276,6 +288,7 @@
       if (!href || seen[href]) continue;
       seen[href] = true;
       out.push({
+        object: "link",
         text: textOf(el),
         href: href,
         rel: attr(el, "rel"),
@@ -296,6 +309,7 @@
       if (!src || seen[src]) continue;
       seen[src] = true;
       out.push({
+        object: "image",
         src: src,
         alt: attr(el, "alt"),
         title: attr(el, "title"),
@@ -325,6 +339,7 @@
       if (!headers.length && rows.length) headers = rows.shift();
       if (!headers.length && !rows.length) continue;
       out.push({
+        object: "table",
         caption: textOf(table.getElementsByTagName("caption")[0]),
         headers: headers,
         rows: rows,
@@ -352,6 +367,19 @@
     return attr(doc.documentElement, "lang") || meta(doc, "language") || "";
   }
 
+  function inferContentType(doc, scope) {
+    var sig = (signature(scope || doc.body || doc.documentElement) + " " + meta(doc, "og:type")).toLowerCase();
+    if (/recipe/.test(sig)) return "recipe";
+    if (/docs|documentation|reference|guide/.test(sig)) return "docs";
+    if (/forum|thread|discussion|comment/.test(sig)) return "forum";
+    if (/newsletter|email/.test(sig)) return "newsletter";
+    if (/product/.test(sig)) return "product";
+    if (/video/.test(sig)) return "video";
+    if (/article|post|story|entry/.test(sig)) return "article";
+    if (scope && scope.tagName === "ARTICLE") return "article";
+    return "unknown";
+  }
+
   function cleanTitle(title) {
     title = (title || "").replace(/\s+/g, " ").trim();
     if (!title) return "";
@@ -370,6 +398,49 @@
     return Math.round(Math.max(0, Math.min(0.99, c)) * 100) / 100;
   }
 
+  function warnings(article, scopeInfo) {
+    var out = [];
+    if (!article.blocks.length) out.push("empty_content");
+    else if (article.blocks.length < 2) out.push("short_content");
+    if (article.confidence < 0.45) out.push("low_confidence");
+    if (article.diagnostics.linkDensity > 0.35) out.push("high_link_density");
+    if (!scopeInfo.el) out.push("no_content_scope");
+    if (article.diagnostics.nextScore && article.diagnostics.score / (article.diagnostics.nextScore + 1) < 1.2) out.push("ambiguous_scope");
+    return out;
+  }
+
+  function statusFrom(article) {
+    if (!article.blocks.length) return "empty";
+    if (article.warnings.indexOf("low_confidence") !== -1 || article.warnings.indexOf("short_content") !== -1) return "partial";
+    return "completed";
+  }
+
+  function elementFromSelectionNode(node) {
+    if (!node) return null;
+    if (node.nodeType === 1) return node;
+    return node.parentElement || null;
+  }
+
+  function selectionFrom(doc) {
+    var w = doc.defaultView;
+    if (!w || !w.getSelection) return null;
+    try {
+      var sel = w.getSelection();
+      var text = ("" + sel).replace(/\s+/g, " ").trim();
+      if (!text) return null;
+      var anchor = elementFromSelectionNode(sel.anchorNode);
+      return {
+        object: "selection",
+        text: text.slice(0, 8000),
+        note: "",
+        createdAt: new Date().toISOString(),
+        source: { selector: selectorFor(anchor) }
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
   function extract(doc) {
     var scopeInfo = findContent(doc);
     var scope = scopeInfo.el;
@@ -381,7 +452,8 @@
     var h1 = doc.querySelector("h1");
     var title = meta(doc, "og:title") || meta(doc, "twitter:title") || (h1 && textOf(h1)) || cleanTitle(doc.title || "");
     var pageUrl = doc.location && doc.location.href ? doc.location.href : "";
-    return {
+    var article = {
+      object: "article",
       title: title,
       byline: meta(doc, "author") || meta(doc, "article:author") || meta(doc, "byl") || meta(doc, "parsely-author") || "",
       hero: meta(doc, "og:image") || meta(doc, "twitter:image") || meta(doc, "twitter:image:src") || "",
@@ -399,6 +471,9 @@
       links: linksFrom(scope || doc.body, doc),
       images: imagesFrom(scope || doc.body, doc),
       tables: tablesFrom(scope || doc.body),
+      selection: selectionFrom(doc),
+      capturedAt: new Date().toISOString(),
+      contentType: inferContentType(doc, scope),
       confidence: confidence(scopeInfo, scope, paragraphs),
       diagnostics: {
         scopeTag: scope ? scope.tagName : "",
@@ -408,6 +483,17 @@
         paragraphCount: paragraphs.length
       }
     };
+    article.textHash = hashString(article.text);
+    article.contentHash = hashString(JSON.stringify({
+      title: article.title,
+      byline: article.byline,
+      url: article.canonicalUrl || article.url,
+      text: article.text,
+      tables: article.tables
+    }));
+    article.warnings = warnings(article, scopeInfo);
+    article.status = statusFrom(article);
+    return article;
   }
 
   function tableMarkdown(table) {

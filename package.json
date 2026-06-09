@@ -5,6 +5,7 @@
   "main": "mantis.js",
   "files": [
     "mantis.js",
+    "llms.txt",
     "README.md",
     "LICENSE"
   ],

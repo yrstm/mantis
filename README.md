@@ -34,6 +34,13 @@ Result shape:
   title: "Example title",
   byline: "Example author",
   hero: "https://example.com/image.jpg",
+  object: "article",
+  status: "completed",
+  contentType: "article",
+  capturedAt: "2026-06-10T12:00:00.000Z",
+  contentHash: "f3a2c91b",
+  textHash: "91b3f2a0",
+  warnings: [],
   text: "First paragraph\n\nSecond paragraph",
   paragraphs: ["First paragraph", "Second paragraph"],
   blocks: [
