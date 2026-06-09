@@ -108,6 +108,65 @@ test("deduplicates repeated responsive body text", () => {
   assert.strictEqual(matches.length, 1);
 });
 
+const STRUCTURED = new JSDOM(`<!doctype html><html lang="en"><head>
+<title>Structured Story - Site</title>
+<link rel="canonical" href="/structured">
+<meta property="og:site_name" content="Example Site">
+<meta property="article:published_time" content="2026-06-10T10:00:00Z">
+<meta property="article:modified_time" content="2026-06-10T12:00:00Z">
+<meta property="og:image" content="/hero.png">
+</head><body>
+<article>
+  <h1>Structured Story</h1>
+  <p>Structured opening paragraph includes a <a href="/source">source link</a> for context and citation.</p>
+  <h2>Data</h2>
+  <p>Structured data paragraph introduces a compact table for extraction.</p>
+  <img src="/chart.png" alt="Chart alt text">
+  <table>
+    <caption>Quarterly results</caption>
+    <tr><th>Quarter</th><th>Value</th></tr>
+    <tr><td>Q1</td><td>10</td></tr>
+    <tr><td>Q2</td><td>12</td></tr>
+  </table>
+</article>
+</body></html>`, { url: "https://example.com/post" }).window.document;
+const s = Mantis.extract(STRUCTURED);
+test("returns structured article metadata", () => {
+  assert.strictEqual(s.url, "https://example.com/post");
+  assert.strictEqual(s.canonicalUrl, "https://example.com/structured");
+  assert.strictEqual(s.siteName, "Example Site");
+  assert.strictEqual(s.language, "en");
+  assert.strictEqual(s.publishedAt, "2026-06-10T10:00:00Z");
+  assert.strictEqual(s.modifiedAt, "2026-06-10T12:00:00Z");
+  assert.strictEqual(s.hero, "/hero.png");
+});
+test("returns blocks, sections, and source selectors", () => {
+  assert.ok(s.text.includes("Structured opening paragraph"));
+  assert.ok(s.blocks.some((block) => block.type === "heading" && block.text === "Data"));
+  assert.ok(s.sections.some((section) => section.heading === "Data"));
+  assert.ok(/^body/.test(s.blocks[0].source.selector));
+  assert.ok(s.citations[1].hrefs.includes("https://example.com/source"));
+  assert.strictEqual(s.citations[0].offset, 0);
+});
+test("extracts article links and images", () => {
+  assert.deepStrictEqual(s.links[0].href, "https://example.com/source");
+  assert.deepStrictEqual(s.images[0].src, "https://example.com/chart.png");
+  assert.strictEqual(s.images[0].alt, "Chart alt text");
+});
+test("extracts tables as rows and cells", () => {
+  assert.strictEqual(s.tables[0].caption, "Quarterly results");
+  assert.deepStrictEqual(s.tables[0].headers, ["Quarter", "Value"]);
+  assert.deepStrictEqual(s.tables[0].rows[1], ["Q2", "12"]);
+});
+test("renders Markdown and reader HTML", () => {
+  const md = Mantis.toMarkdown(s);
+  const html = Mantis.toHTML(s);
+  assert.ok(md.includes("# Structured Story"));
+  assert.ok(md.includes("| Quarter | Value |"));
+  assert.ok(html.includes('<article class="mantis-reader">'));
+  assert.ok(html.includes("<table>"));
+});
+
 /* ---------- run(): POST happy path, CSP fallback, double-click guard ---------- */
 async function runCase(fetchImpl) {
   const dom = new JSDOM(

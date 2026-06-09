@@ -11,7 +11,9 @@
  * take the winner's paragraphs.
  *
  * API (no side effects unless asked):
- *   Mantis.extract(document) -> { title, byline, hero, paragraphs[], confidence, diagnostics }
+ *   Mantis.extract(document) -> article object with text, blocks, sections, links, images, tables
+ *   Mantis.toMarkdown(article) -> Markdown string
+ *   Mantis.toHTML(article)     -> reader HTML string
  *   Mantis.run(scriptEl)     -> extract + POST to the origin the script was
  *                                    loaded from, with an in-page confirmation.
  *                                    Falls back to the /save popup if CSP
@@ -36,8 +38,26 @@
   var GOOD = /article|body|content|entry|main|markdown|markup|post|story|text|docs|recipe/i;
   var HIDDEN_CLASS = /(^|\s)(hidden|collapsed|visually-hidden|sr-only|screen-reader|u-hidden|is-hidden)(\s|$)/i;
   var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1 };
+  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading" };
 
   function textOf(el) { return (el.textContent || "").replace(/\s+/g, " ").trim(); }
+
+  function attr(el, name) {
+    return el && el.getAttribute ? (el.getAttribute(name) || "").trim() : "";
+  }
+
+  function absoluteUrl(doc, value) {
+    if (!value) return "";
+    try { return new doc.defaultView.URL(value, doc.location && doc.location.href).href; } catch (e) { return value; }
+  }
+
+  function escapeHtml(s) {
+    return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function escapeMarkdown(s) {
+    return (s || "").replace(/\\/g, "\\\\").replace(/([`*_{}\[\]()#+.!|>~-])/g, "\\$1");
+  }
 
   function signature(el) {
     return (el.id || "") + " " + (el.className && el.className.baseVal !== undefined ? "" : el.className || "") + " " +
@@ -142,7 +162,40 @@
     return t.toLowerCase().replace(/[.,;:!?"'()[\]{}]+/g, " ").replace(/\s+/g, " ").trim();
   }
 
-  function paragraphsFrom(scope, stopAt) {
+  function selectorFor(el) {
+    if (!el || !el.tagName) return "";
+    var parts = [];
+    for (var n = el; n && n.nodeType === 1 && !/^(HTML)$/.test(n.tagName); n = n.parentElement) {
+      var part = n.tagName.toLowerCase();
+      if (n.id && /^[A-Za-z][\w-]*$/.test(n.id)) {
+        part += "#" + n.id;
+        parts.unshift(part);
+        break;
+      }
+      var index = 1;
+      for (var p = n.previousElementSibling; p; p = p.previousElementSibling) {
+        if (p.tagName === n.tagName) index++;
+      }
+      part += ":nth-of-type(" + index + ")";
+      parts.unshift(part);
+      if (/^(BODY)$/.test(n.tagName)) break;
+    }
+    return parts.join(" > ");
+  }
+
+  function linksFromElement(el, doc) {
+    var out = [];
+    var links = el.getElementsByTagName("a");
+    for (var i = 0; i < links.length; i++) {
+      var t = textOf(links[i]);
+      var href = absoluteUrl(doc, attr(links[i], "href"));
+      if (!href) continue;
+      out.push({ text: t, href: href });
+    }
+    return out;
+  }
+
+  function blocksFrom(scope, stopAt, doc) {
     var out = [];
     var used = {};
     var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3");
@@ -159,7 +212,124 @@
       var key = normalized(t);
       if (used[key]) continue;
       used[key] = true;
-      out.push(t.slice(0, 8000));
+      var type = BLOCK_TYPE[el.tagName] || "paragraph";
+      out.push({
+        type: type,
+        tag: el.tagName,
+        level: type === "heading" ? parseInt(el.tagName.slice(1), 10) : 0,
+        text: t.slice(0, 8000),
+        links: linksFromElement(el, doc),
+        source: {
+          selector: selectorFor(el),
+          index: out.length
+        }
+      });
+    }
+    return out;
+  }
+
+  function paragraphsFromBlocks(blocks) {
+    var out = [];
+    for (var i = 0; i < blocks.length; i++) out.push(blocks[i].text);
+    return out;
+  }
+
+  function sectionsFromBlocks(blocks) {
+    var sections = [];
+    var current = { heading: "", level: 0, blocks: [] };
+    for (var i = 0; i < blocks.length; i++) {
+      var block = blocks[i];
+      if (block.type === "heading") {
+        if (current.heading || current.blocks.length) sections.push(current);
+        current = { heading: block.text, level: block.level, blocks: [] };
+      } else {
+        current.blocks.push(block);
+      }
+    }
+    if (current.heading || current.blocks.length) sections.push(current);
+    return sections;
+  }
+
+  function citationsFromBlocks(blocks) {
+    var out = [];
+    var offset = 0;
+    for (var i = 0; i < blocks.length; i++) {
+      out.push({
+        text: blocks[i].text,
+        selector: blocks[i].source.selector,
+        hrefs: blocks[i].links.map(function (link) { return link.href; }),
+        offset: offset
+      });
+      offset += blocks[i].text.length + 2;
+    }
+    return out;
+  }
+
+  function linksFrom(scope, doc) {
+    var out = [];
+    var seen = {};
+    var links = scope ? scope.getElementsByTagName("a") : [];
+    for (var i = 0; i < links.length && out.length < 200; i++) {
+      var el = links[i];
+      if (hidden(el) || flagged(el, scope)) continue;
+      var href = absoluteUrl(doc, attr(el, "href"));
+      if (!href || seen[href]) continue;
+      seen[href] = true;
+      out.push({
+        text: textOf(el),
+        href: href,
+        rel: attr(el, "rel"),
+        source: { selector: selectorFor(el) }
+      });
+    }
+    return out;
+  }
+
+  function imagesFrom(scope, doc) {
+    var out = [];
+    var seen = {};
+    var images = scope ? scope.getElementsByTagName("img") : [];
+    for (var i = 0; i < images.length && out.length < 100; i++) {
+      var el = images[i];
+      if (hidden(el) || flagged(el, scope)) continue;
+      var src = absoluteUrl(doc, attr(el, "src") || attr(el, "data-src"));
+      if (!src || seen[src]) continue;
+      seen[src] = true;
+      out.push({
+        src: src,
+        alt: attr(el, "alt"),
+        title: attr(el, "title"),
+        source: { selector: selectorFor(el) }
+      });
+    }
+    return out;
+  }
+
+  function tablesFrom(scope) {
+    var out = [];
+    var tables = scope ? scope.getElementsByTagName("table") : [];
+    for (var i = 0; i < tables.length && out.length < 50; i++) {
+      var table = tables[i];
+      if (hidden(table) || flagged(table, scope)) continue;
+      var rows = [];
+      var headers = [];
+      var trs = table.getElementsByTagName("tr");
+      for (var r = 0; r < trs.length; r++) {
+        var row = [];
+        var cells = trs[r].querySelectorAll("th, td");
+        for (var c = 0; c < cells.length; c++) row.push(textOf(cells[c]));
+        if (!row.length) continue;
+        if (!headers.length && trs[r].getElementsByTagName("th").length) headers = row;
+        else rows.push(row);
+      }
+      if (!headers.length && rows.length) headers = rows.shift();
+      if (!headers.length && !rows.length) continue;
+      out.push({
+        caption: textOf(table.getElementsByTagName("caption")[0]),
+        headers: headers,
+        rows: rows,
+        source: { selector: selectorFor(table) }
+      });
     }
     return out;
   }
@@ -167,6 +337,19 @@
   function meta(doc, name) {
     var el = doc.querySelector('meta[property="' + name + '"], meta[name="' + name + '"]');
     return el && el.getAttribute("content") ? el.getAttribute("content").trim() : "";
+  }
+
+  function canonicalUrl(doc) {
+    var el = doc.querySelector('link[rel="canonical"]');
+    return absoluteUrl(doc, attr(el, "href"));
+  }
+
+  function siteName(doc) {
+    return meta(doc, "og:site_name") || "";
+  }
+
+  function language(doc) {
+    return attr(doc.documentElement, "lang") || meta(doc, "language") || "";
   }
 
   function cleanTitle(title) {
@@ -190,15 +373,32 @@
   function extract(doc) {
     var scopeInfo = findContent(doc);
     var scope = scopeInfo.el;
-    var paragraphs = scope ? paragraphsFrom(scope, scope) : [];
-    if (paragraphs.length < 2 && doc.body) paragraphs = paragraphsFrom(doc.body, doc.body);
+    var blocks = scope ? blocksFrom(scope, scope, doc) : [];
+    if (blocks.length < 2 && doc.body) blocks = blocksFrom(doc.body, doc.body, doc);
+    var paragraphs = paragraphsFromBlocks(blocks);
+    var sections = sectionsFromBlocks(blocks);
+    var citations = citationsFromBlocks(blocks);
     var h1 = doc.querySelector("h1");
     var title = meta(doc, "og:title") || meta(doc, "twitter:title") || (h1 && textOf(h1)) || cleanTitle(doc.title || "");
+    var pageUrl = doc.location && doc.location.href ? doc.location.href : "";
     return {
       title: title,
       byline: meta(doc, "author") || meta(doc, "article:author") || meta(doc, "byl") || meta(doc, "parsely-author") || "",
       hero: meta(doc, "og:image") || meta(doc, "twitter:image") || meta(doc, "twitter:image:src") || "",
+      url: pageUrl,
+      canonicalUrl: canonicalUrl(doc) || pageUrl,
+      siteName: siteName(doc),
+      publishedAt: meta(doc, "article:published_time") || meta(doc, "date") || "",
+      modifiedAt: meta(doc, "article:modified_time") || meta(doc, "lastmod") || "",
+      language: language(doc),
+      text: paragraphs.join("\n\n"),
       paragraphs: paragraphs,
+      blocks: blocks,
+      sections: sections,
+      citations: citations,
+      links: linksFrom(scope || doc.body, doc),
+      images: imagesFrom(scope || doc.body, doc),
+      tables: tablesFrom(scope || doc.body),
       confidence: confidence(scopeInfo, scope, paragraphs),
       diagnostics: {
         scopeTag: scope ? scope.tagName : "",
@@ -208,6 +408,86 @@
         paragraphCount: paragraphs.length
       }
     };
+  }
+
+  function tableMarkdown(table) {
+    var headers = table.headers && table.headers.length ? table.headers.slice() : [];
+    var rows = table.rows ? table.rows.slice() : [];
+    if (!headers.length && rows.length) headers = rows.shift();
+    if (!headers.length) return "";
+    var out = [];
+    out.push("| " + headers.map(escapeMarkdown).join(" | ") + " |");
+    out.push("| " + headers.map(function () { return "---"; }).join(" | ") + " |");
+    for (var r = 0; r < rows.length; r++) {
+      out.push("| " + rows[r].map(escapeMarkdown).join(" | ") + " |");
+    }
+    return out.join("\n");
+  }
+
+  function toMarkdown(article) {
+    var out = [];
+    if (article.title) out.push("# " + escapeMarkdown(article.title));
+    if (article.byline) out.push(escapeMarkdown(article.byline));
+    var blocks = article.blocks || [];
+    if (!blocks.length && article.paragraphs) {
+      for (var p = 0; p < article.paragraphs.length; p++) {
+        blocks.push({ type: "paragraph", text: article.paragraphs[p] });
+      }
+    }
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (b.type === "heading") out.push(new Array(Math.min(Math.max(b.level, 1), 6) + 1).join("#") + " " + escapeMarkdown(b.text));
+      else if (b.type === "blockquote") out.push("> " + escapeMarkdown(b.text));
+      else if (b.type === "code") out.push("```\n" + b.text + "\n```");
+      else if (b.type === "list_item") out.push("- " + escapeMarkdown(b.text));
+      else out.push(escapeMarkdown(b.text));
+    }
+    var tables = article.tables || [];
+    for (var t = 0; t < tables.length; t++) {
+      var md = tableMarkdown(tables[t]);
+      if (md) out.push(md);
+    }
+    return out.join("\n\n").trim();
+  }
+
+  function toHTML(article) {
+    var out = ['<article class="mantis-reader">'];
+    if (article.title) out.push("<h1>" + escapeHtml(article.title) + "</h1>");
+    if (article.byline) out.push('<p class="byline">' + escapeHtml(article.byline) + "</p>");
+    var blocks = article.blocks || [];
+    if (!blocks.length && article.paragraphs) {
+      for (var p = 0; p < article.paragraphs.length; p++) {
+        blocks.push({ type: "paragraph", text: article.paragraphs[p] });
+      }
+    }
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (b.type === "heading") out.push("<h" + b.level + ">" + escapeHtml(b.text) + "</h" + b.level + ">");
+      else if (b.type === "blockquote") out.push("<blockquote>" + escapeHtml(b.text) + "</blockquote>");
+      else if (b.type === "code") out.push("<pre><code>" + escapeHtml(b.text) + "</code></pre>");
+      else if (b.type === "list_item") out.push("<ul><li>" + escapeHtml(b.text) + "</li></ul>");
+      else out.push("<p>" + escapeHtml(b.text) + "</p>");
+    }
+    var tables = article.tables || [];
+    for (var t = 0; t < tables.length; t++) {
+      var table = tables[t];
+      out.push("<table>");
+      if (table.caption) out.push("<caption>" + escapeHtml(table.caption) + "</caption>");
+      if (table.headers && table.headers.length) {
+        out.push("<thead><tr>");
+        for (var h = 0; h < table.headers.length; h++) out.push("<th>" + escapeHtml(table.headers[h]) + "</th>");
+        out.push("</tr></thead>");
+      }
+      out.push("<tbody>");
+      for (var r = 0; r < table.rows.length; r++) {
+        out.push("<tr>");
+        for (var c = 0; c < table.rows[r].length; c++) out.push("<td>" + escapeHtml(table.rows[r][c]) + "</td>");
+        out.push("</tr>");
+      }
+      out.push("</tbody></table>");
+    }
+    out.push("</article>");
+    return out.join("");
   }
 
   /* ---------- the bookmarklet flow: capture, seal, confirm ---------- */
@@ -280,5 +560,5 @@
     }
   }
 
-  return { extract: extract, run: run };
+  return { extract: extract, toMarkdown: toMarkdown, toHTML: toHTML, run: run };
 });

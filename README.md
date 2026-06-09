@@ -8,7 +8,7 @@ side capture tools.
 ## What it does
 
 - Finds the main readable container in a document.
-- Returns title, byline, hero image, paragraphs, confidence, and diagnostics.
+- Returns metadata, text, blocks, sections, links, images, tables, confidence, and diagnostics.
 - Filters navigation, comments, ads, hidden DOM, and repeated responsive content.
 - Runs in the page without fetching the URL again.
 
@@ -34,7 +34,20 @@ Result shape:
   title: "Example title",
   byline: "Example author",
   hero: "https://example.com/image.jpg",
+  text: "First paragraph\n\nSecond paragraph",
   paragraphs: ["First paragraph", "Second paragraph"],
+  blocks: [
+    {
+      type: "paragraph",
+      text: "First paragraph",
+      source: { selector: "body > article:nth-of-type(1) > p:nth-of-type(1)", index: 0 }
+    }
+  ],
+  sections: [{ heading: "", level: 0, blocks: [] }],
+  citations: [{ text: "First paragraph", selector: "body > article:nth-of-type(1) > p:nth-of-type(1)", hrefs: [], offset: 0 }],
+  links: [{ text: "Source", href: "https://example.com/source", rel: "", source: {} }],
+  images: [{ src: "https://example.com/image.jpg", alt: "", title: "", source: {} }],
+  tables: [{ caption: "", headers: ["Name", "Value"], rows: [["A", "1"]], source: {} }],
   confidence: 0.82,
   diagnostics: {
     scopeTag: "ARTICLE",
@@ -44,6 +57,13 @@ Result shape:
     paragraphCount: 2
   }
 }
+```
+
+Format helpers:
+
+```js
+const markdown = Mantis.toMarkdown(article);
+const html = Mantis.toHTML(article);
 ```
 
 `Mantis.run(scriptElement)` is an optional bookmarklet helper. It extracts the page, posts the
