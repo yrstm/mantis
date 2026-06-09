@@ -1,0 +1,83 @@
+[
+  {
+    "name": "chrome-heavy article",
+    "file": "chrome-heavy.html",
+    "expected": ["Alpha article paragraph", "Bravo article paragraph", "Charlie quoted passage"],
+    "forbidden": ["Header navigation", "Related link farm", "Footer legal text"],
+    "metadata": { "title": "The Useful Essay", "byline": "A. Writer", "hero": "https://example.com/hero.jpg" },
+    "diagnostics": { "minConfidence": 0.7, "scopeTag": "ARTICLE" }
+  },
+  {
+    "name": "hidden template before article",
+    "file": "hidden-template.html",
+    "expected": ["Delta visible paragraph", "Echo visible paragraph"],
+    "forbidden": ["Hidden stale paragraph", "Hidden archive paragraph", "Hidden duplicate paragraph", "Screen-reader utility text"],
+    "metadata": { "title": "Visible Article" },
+    "diagnostics": { "minConfidence": 0.55, "scopeTag": "ARTICLE" }
+  },
+  {
+    "name": "semantic metadata and noisy bylines",
+    "file": "semantic-metadata.html",
+    "expected": ["Foxtrot article paragraph", "Golf article paragraph"],
+    "forbidden": ["Menu prose", "Share this semantic fixture"],
+    "metadata": { "title": "Semantic Headline", "byline": "Reporter Name", "hero": "https://example.com/twitter.jpg" },
+    "diagnostics": { "minConfidence": 0.65, "scopeTag": "ARTICLE" }
+  },
+  {
+    "name": "substack-like newsletter",
+    "file": "substack-like.html",
+    "expected": ["Hotel newsletter paragraph", "India newsletter paragraph"],
+    "forbidden": ["Subscribe now", "Reader comment"],
+    "metadata": { "title": "A Letter From the Future", "byline": "Stack Writer", "hero": "https://example.com/stack.jpg" },
+    "diagnostics": { "minConfidence": 0.65, "scopeTag": "SECTION" }
+  },
+  {
+    "name": "medium-like article",
+    "file": "medium-like.html",
+    "expected": ["Juliet medium paragraph", "Kilo medium paragraph"],
+    "forbidden": ["Member-only prompt", "Recommended story"],
+    "metadata": { "title": "Medium Layout Story", "byline": "Medium Author" },
+    "diagnostics": { "minConfidence": 0.65, "scopeTag": "SECTION" }
+  },
+  {
+    "name": "responsive duplicate article",
+    "file": "responsive-duplicate.html",
+    "expected": ["Lima responsive paragraph", "Mike responsive paragraph"],
+    "forbidden": [],
+    "metadata": { "title": "Responsive Duplicate" },
+    "counts": { "Lima responsive paragraph": 1, "Mike responsive paragraph": 1 },
+    "diagnostics": { "minConfidence": 0.65, "scopeTag": "ARTICLE" }
+  },
+  {
+    "name": "docs page",
+    "file": "docs-page.html",
+    "expected": ["Install the Widget", "November docs paragraph", "Configure access", "Oscar docs paragraph", "widget configure"],
+    "forbidden": ["Docs navigation", "Docs footer"],
+    "metadata": { "title": "Install the Widget" },
+    "diagnostics": { "minConfidence": 0.55, "scopeTag": "MAIN" }
+  },
+  {
+    "name": "recipe page",
+    "file": "recipe-page.html",
+    "expected": ["Papa recipe introduction", "Quebec recipe paragraph", "Ingredients", "one cup rice", "two cups paneer"],
+    "forbidden": ["Jump to recipe"],
+    "metadata": { "title": "Paneer Rice Bowl", "byline": "Recipe Author" },
+    "diagnostics": { "minConfidence": 0.65, "scopeTag": "ARTICLE" }
+  },
+  {
+    "name": "forum answer",
+    "file": "forum-noise.html",
+    "expected": ["Romeo forum answer", "Sierra forum answer"],
+    "forbidden": ["Forum toolbar", "Thanks reply"],
+    "metadata": { "title": "Forum Thread" },
+    "diagnostics": { "minConfidence": 0.65, "scopeTag": "ARTICLE" }
+  },
+  {
+    "name": "title cleanup",
+    "file": "title-cleanup.html",
+    "expected": ["Tango title cleanup paragraph", "Uniform title cleanup paragraph"],
+    "forbidden": [],
+    "metadata": { "title": "Tango Clean Title" },
+    "diagnostics": { "minConfidence": 0.55, "scopeTag": "ARTICLE" }
+  }
+]

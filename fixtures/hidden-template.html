@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <title>Hidden fixture</title>
+  <style>
+    .visually-hidden { position: absolute; left: -9999px; }
+    .collapsed { display: none; }
+  </style>
+</head>
+<body>
+  <div class="article-body collapsed">
+    <p>Hidden stale paragraph should never win extraction because its container is not visible.</p>
+    <p>Hidden archive paragraph should never appear because hidden templates are not user-visible content.</p>
+    <p>Hidden duplicate paragraph should stay invisible even when it contains enough text to score highly.</p>
+  </div>
+  <p class="visually-hidden">Screen-reader utility text should not become captured prose for the article body.</p>
+  <article>
+    <h1>Visible Article</h1>
+    <p>Delta visible paragraph should be captured because it is part of the rendered article.</p>
+    <p>Echo visible paragraph should also be captured because it continues the rendered article.</p>
+  </article>
+</body>
+</html>

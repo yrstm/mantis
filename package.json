@@ -1,0 +1,36 @@
+{
+  "name": "mantis",
+  "version": "0.1.0",
+  "description": "Extract readable content from the current browser DOM.",
+  "main": "mantis.js",
+  "files": [
+    "mantis.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/yrstm/mantis#readme",
+  "bugs": {
+    "url": "https://github.com/yrstm/mantis/issues"
+  },
+  "scripts": {
+    "benchmark": "node benchmark.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "readability",
+    "article-extraction",
+    "bookmarklet",
+    "read-later",
+    "archive",
+    "client-side",
+    "content-script"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yrstm/mantis.git"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0"
+  }
+}
