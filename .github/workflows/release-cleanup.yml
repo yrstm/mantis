@@ -1,0 +1,52 @@
+name: Release cleanup
+
+# Sessions pushing through the git proxy can only update their own branch,
+# so tag creation and branch deletion run here with the Actions token.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to create (e.g. v0.2.0); empty skips tagging"
+        required: false
+        default: ""
+      sha:
+        description: "Commit the tag points at (defaults to main's HEAD)"
+        required: false
+        default: ""
+      delete_branches:
+        description: "Comma-separated branches to delete; empty skips"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      SHA: ${{ inputs.sha }}
+      DELETE_BRANCHES: ${{ inputs.delete_branches }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create tag
+        if: inputs.tag != ''
+        run: |
+          target="${SHA:-$(git rev-parse origin/main)}"
+          git tag "$TAG" "$target"
+          git push origin "refs/tags/$TAG"
+      - name: Delete branches
+        if: inputs.delete_branches != ''
+        run: |
+          IFS=',' read -ra branches <<< "$DELETE_BRANCHES"
+          for b in "${branches[@]}"; do
+            b="$(echo "$b" | xargs)"
+            if [ "$b" = "main" ]; then
+              echo "refusing to delete main" >&2
+              exit 1
+            fi
+            git push origin --delete "$b"
+          done
