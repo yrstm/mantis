@@ -23,6 +23,7 @@
     "pack:check": "npm pack --dry-run",
     "perf": "node perf.js",
     "test": "node test.js",
+    "test:browser": "node demo/browser-test.js",
     "types:check": "tsc --noEmit --strict --lib dom,es2020 --module commonjs types-smoke.ts"
   },
   "keywords": [

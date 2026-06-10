@@ -170,12 +170,18 @@ npm run demo
 Open `http://127.0.0.1:8787` and drag the **Markdown this page** bookmarklet to your bookmarks
 bar. Click it on any page in the same browser: mantis runs inside that page — the DOM you see,
 not the HTML the server sent — and an overlay shows the Markdown it produced, with a copy
-button and live toggles for frontmatter and the outline budget. The demo server only serves
-your working copy of `mantis.js`; the capture never leaves the page.
+button and live toggles for frontmatter and the outline budget. Select text first to convert
+just the selection. When confidence is low, a **raw** toggle keeps the short blocks the default
+pass filters out — also handy for debugging extraction. The demo server only serves your
+working copy of `mantis.js` (uncached, so edits show up on the next click); the capture never
+leaves the page.
 
-Sites with a strict Content-Security-Policy block injected scripts. For those, paste the page's
-HTML (devtools → copy outerHTML) into the box on the demo page instead — same engine, via
-`fromHTML`, entirely in your browser.
+If clicking does nothing, the bookmarklet alerts with why: the demo server isn't running, or
+the site's Content-Security-Policy blocks injected scripts (Safari additionally blocks `https`
+pages from loading off localhost — Chrome and Firefox exempt `127.0.0.1`). For those pages use
+the paste fallback on the demo page: a one-line devtools snippet copies the URL and rendered
+HTML as one blob, and the paste box converts it — same engine, via `fromHTML`, entirely in
+your browser.
 
 ## Bookmarklet
 

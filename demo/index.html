@@ -12,7 +12,10 @@
     input[type="url"] { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; }
     button { font: inherit; padding: 6px 14px; border: 1px solid #222; border-radius: 4px;
              background: #111; color: #fff; cursor: pointer; }
-    code { background: #f5f5f5; padding: 2px 4px; }
+    button.secondary { background: #fff; color: #111; }
+    code, pre { background: #f5f5f5; }
+    code { padding: 2px 4px; }
+    pre { padding: 8px; overflow: auto; }
     .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
     .muted { color: #555; }
   </style>
@@ -22,16 +25,25 @@
   <p>Drag this to your bookmarks bar, then click it on any page you are reading:</p>
   <p><a class="bookmarklet" id="bm" href="#">Markdown this page</a></p>
   <p class="muted">Mantis runs inside the page — the DOM you see, not the HTML the server sent — and
-     an overlay shows the Markdown with a copy button. Keep <code>npm run demo</code> running; it only
-     serves your working copy of <code>mantis.js</code>. Nothing leaves the page.</p>
+     an overlay shows the Markdown with a copy button. Select text first to convert just the
+     selection. Keep <code>npm run demo</code> running; it only serves your working copy of
+     <code>mantis.js</code> (uncached, so edits show up on the next click). Nothing leaves the page.</p>
+  <p class="muted">If clicking does nothing and no alert appears: Safari blocks
+     <code>https</code> pages from loading scripts off localhost (Chrome and Firefox exempt
+     <code>127.0.0.1</code>). Use the paste fallback below.</p>
 
-  <h2>No bookmarklet? Paste HTML</h2>
-  <p class="muted">Some sites' Content-Security-Policy blocks injected scripts. Copy the page's HTML
-     instead (devtools &rarr; copy outerHTML) and convert it here — same engine, via
-     <code>Mantis.fromHTML</code>, entirely in this tab.</p>
-  <textarea id="html-in" rows="8" placeholder="<html>…</html>" spellcheck="false"></textarea>
+  <h2>No bookmarklet? Paste the page</h2>
+  <p class="muted">Some sites' Content-Security-Policy blocks injected scripts. Run this in that
+     page's devtools console — it puts the URL and rendered HTML on your clipboard as one blob:</p>
   <div class="row">
-    <input type="url" id="url-in" placeholder="Original URL (optional — resolves relative links)">
+    <pre id="snippet">copy(JSON.stringify({url: location.href, html: document.documentElement.outerHTML}))</pre>
+    <button class="secondary" id="copy-snippet">Copy snippet</button>
+  </div>
+  <p class="muted">Paste the blob (or raw HTML) here — same engine, via <code>Mantis.fromHTML</code>,
+     entirely in this tab:</p>
+  <textarea id="html-in" rows="8" placeholder='{"url": "…", "html": "<html>…"} or raw <html>…' spellcheck="false"></textarea>
+  <div class="row">
+    <input type="url" id="url-in" placeholder="Original URL (optional — taken from the blob if present)">
     <button id="convert">Convert</button>
   </div>
   <textarea id="md-out" rows="14" readonly spellcheck="false" placeholder="Markdown appears here"></textarea>
@@ -42,19 +54,34 @@
 
   <script src="/mantis.js"></script>
   <script>
-    const code = "(function(){var s=document.createElement('script');" +
+    // The bookmarklet alerts on every silent-failure path: demo server down,
+    // CSP blocking the injected script, or Safari refusing https->localhost.
+    const msg = "Mantis demo: could not load the overlay. Either npm run demo is not running on " +
+      location.host + ", or this site blocks injected scripts (strict CSP; Safari also blocks " +
+      "https pages from reaching localhost). Use the paste fallback at " + location.origin;
+    const code = "(function(){var ok=false,s=document.createElement('script');" +
       "s.src='" + location.origin + "/overlay.js?t='+Date.now();" +
-      "s.onerror=function(){alert('Mantis demo: is npm run demo still running?')};" +
+      "s.onload=function(){ok=true};" +
+      "s.onerror=function(){ok=true;alert(" + JSON.stringify(msg) + ")};" +
+      "setTimeout(function(){if(!ok)alert(" + JSON.stringify(msg) + ")},3000);" +
       "(document.body||document.documentElement).appendChild(s);})()";
     document.getElementById("bm").setAttribute("href", "javascript:" + code);
 
+    document.getElementById("copy-snippet").addEventListener("click", () => {
+      navigator.clipboard.writeText(document.getElementById("snippet").textContent);
+    });
+
     document.getElementById("convert").addEventListener("click", () => {
-      const html = document.getElementById("html-in").value;
+      let html = document.getElementById("html-in").value;
+      let url = document.getElementById("url-in").value || undefined;
       if (!html.trim()) return;
-      const article = Mantis.fromHTML(html, {
-        DOMParser: window.DOMParser,
-        url: document.getElementById("url-in").value || undefined
-      });
+      if (html.trim().startsWith("{")) {
+        try {
+          const blob = JSON.parse(html);
+          if (blob.html) { html = blob.html; url = url || blob.url; }
+        } catch (e) { /* not a blob — treat as raw HTML */ }
+      }
+      const article = Mantis.fromHTML(html, { DOMParser: window.DOMParser, url });
       const markdown = Mantis.toMarkdown(article, { frontmatter: true, images: "alt" });
       document.getElementById("md-out").value = markdown;
       document.getElementById("stats").textContent =

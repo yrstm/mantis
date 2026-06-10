@@ -18,3 +18,14 @@ jobs:
       - run: npm run benchmark
       - run: npm run types:check
       - run: npm pack --dry-run
+
+  demo-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm i --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
