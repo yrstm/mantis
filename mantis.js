@@ -751,57 +751,56 @@
 
   var HASHES = ["#", "##", "###", "####", "#####", "######"];
 
+  // Render priorities for the "outline" budget: metadata, then headings, then
+  // the first content block of each section, then remaining prose, then images.
   function toMarkdown(article, options) {
     options = options || {};
     var images = options.images || "omit";
     var maxChars = options.maxChars > 0 ? options.maxChars : 0;
     var parts = [];
-    var length = 0;
-    // budget cuts at block boundaries; the first part always survives
-    function add(part) {
-      if (!part) return true;
-      var next = length + part.length + (parts.length ? 2 : 0);
-      if (maxChars && parts.length && next > maxChars) return false;
+    var prios = [];
+    function add(part, prio) {
+      if (!part) return;
       parts.push(part);
-      length = next;
-      return true;
+      prios.push(prio);
     }
-    if (options.frontmatter) add(frontmatterFor(article));
-    if (article.title) add("# " + escapeInline(article.title));
-    if (article.byline) add(escapeLeader(escapeInline(article.byline)));
+    if (options.frontmatter) add(frontmatterFor(article), 0);
+    if (article.title) add("# " + escapeInline(article.title), 0);
+    if (article.byline) add(escapeLeader(escapeInline(article.byline)), 0);
     var blocks = article.blocks && article.blocks.length ? article.blocks : [];
     if (!blocks.length && article.paragraphs) {
       blocks = article.paragraphs.map(function (text) { return { type: "paragraph", text: text }; });
     }
+    var lead = true; // the document lead counts as a section lead
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
       // the page H1 usually repeats the title; emit it once
       if (i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title) continue;
-      var ok;
       if (b.type === "heading") {
-        ok = add(HASHES[Math.min(Math.max(b.level || 1, 1), 6) - 1] + " " + inlineMarkdown(b));
-      } else if (b.type === "blockquote") {
-        ok = add("> " + escapeLeader(inlineMarkdown(b)));
+        add(HASHES[Math.min(Math.max(b.level || 1, 1), 6) - 1] + " " + inlineMarkdown(b), 1);
+        lead = true;
+        continue;
+      }
+      var prio = lead ? 2 : 3;
+      lead = false;
+      if (b.type === "blockquote") {
+        add("> " + escapeLeader(inlineMarkdown(b)), prio);
       } else if (b.type === "code") {
-        ok = add(fencedCode(b));
+        add(fencedCode(b), prio);
       } else if (b.type === "list_item") {
         var lines = [listItemMarkdown(b)];
         while (i + 1 < blocks.length && blocks[i + 1].type === "list_item") {
           i++;
           lines.push(listItemMarkdown(blocks[i]));
         }
-        ok = add(lines.join("\n"));
+        add(lines.join("\n"), prio);
       } else {
-        ok = add(escapeLeader(inlineMarkdown(b)));
+        add(escapeLeader(inlineMarkdown(b)), prio);
       }
-      if (!ok) break;
     }
     if (options.tables !== false) {
       var tables = article.tables || [];
-      for (var t = 0; t < tables.length; t++) {
-        var md = tableMarkdown(tables[t]);
-        if (md && !add(md)) break;
-      }
+      for (var t = 0; t < tables.length; t++) add(tableMarkdown(tables[t]), 3);
     }
     if (images === "alt" || images === "links") {
       var imgs = article.images || [];
@@ -811,9 +810,38 @@
         var dest = linkDestination(imgs[m].src);
         rendered.push(images === "alt" ? "![" + alt + "](" + dest + ")" : "[" + alt + "](" + dest + ")");
       }
-      if (rendered.length) add(rendered.join("\n"));
+      if (rendered.length) add(rendered.join("\n"), 4);
     }
-    return parts.join("\n\n").trim();
+    if (!maxChars) return parts.join("\n\n").trim();
+    // budget selection at block boundaries; the first chosen part always survives
+    var chosen = [];
+    var length = 0;
+    var any = false;
+    function fits(k) {
+      var cost = parts[k].length + (any ? 2 : 0);
+      if (any && length + cost > maxChars) return false;
+      chosen[k] = true;
+      length += cost;
+      any = true;
+      return true;
+    }
+    if (options.budget === "outline") {
+      // structure-aware: spend the budget on high-priority parts first,
+      // skipping anything that does not fit, then emit in document order
+      for (var pr = 0; pr <= 4; pr++) {
+        for (var k = 0; k < parts.length; k++) {
+          if (prios[k] === pr) fits(k);
+        }
+      }
+    } else {
+      // default: keep the leading run of parts and cut the tail
+      for (var c = 0; c < parts.length && fits(c); c++) { /* prefix */ }
+    }
+    var out = [];
+    for (var o = 0; o < parts.length; o++) {
+      if (chosen[o]) out.push(parts[o]);
+    }
+    return out.join("\n\n").trim();
   }
 
   function toHTML(article) {

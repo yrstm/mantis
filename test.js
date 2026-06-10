@@ -282,6 +282,27 @@ test("toMarkdown maxChars cuts at block boundaries", () => {
   assert.ok(small.length <= 80);
   assert.ok(small.includes("# Structured Story"));
 });
+test("toMarkdown outline budget keeps headings and section leads", () => {
+  const filler = "Filler sentence that runs long enough to spend the whole budget on low priority prose. ".repeat(3).trim();
+  const docArticle = {
+    title: "Budget Doc",
+    blocks: [
+      { type: "heading", level: 2, text: "Alpha section" },
+      { type: "paragraph", text: "Alpha lead paragraph stays." },
+      { type: "paragraph", text: filler },
+      { type: "heading", level: 2, text: "Beta section" },
+      { type: "paragraph", text: "Beta lead paragraph stays." }
+    ]
+  };
+  const cut = Mantis.toMarkdown(docArticle, { maxChars: 150 });
+  const outline = Mantis.toMarkdown(docArticle, { maxChars: 150, budget: "outline" });
+  assert.ok(!cut.includes("## Beta section"), "cut mode loses the tail");
+  assert.ok(outline.includes("## Beta section"));
+  assert.ok(outline.includes("Beta lead paragraph stays."));
+  assert.ok(!outline.includes("Filler sentence"));
+  assert.ok(outline.length <= 150);
+  assert.ok(outline.indexOf("Alpha lead") < outline.indexOf("## Beta section"), "document order preserved");
+});
 test("toMarkdown can include images and drop tables", () => {
   const md = Mantis.toMarkdown(s, { images: "alt", tables: false });
   assert.ok(md.includes("![Chart alt text](https://example.com/chart.png)"));

@@ -2,10 +2,12 @@
 
 Mantis extracts readable content from the rendered browser DOM and converts it to structured JSON
 or clean Markdown. `Mantis.extract(document)` returns the canonical article object;
-`Mantis.toMarkdown(article, { frontmatter, images, tables, maxChars })` renders token-efficient
-Markdown with inline links, emphasis, nested lists, and fenced code; `Mantis.fromHTML(html, { url,
-DOMParser })` is the server-side entry point (inject jsdom or linkedom). Frontmatter carries url,
-confidence, contentHash, and warnings so agents can branch on extraction quality and dedupe.
+`Mantis.toMarkdown(article, { frontmatter, images, tables, maxChars, budget })` renders
+token-efficient Markdown with inline links, emphasis, nested lists, and fenced code;
+`budget: "outline"` makes an over-budget page degrade like an outline (headings and section leads
+survive first) instead of losing its tail. `Mantis.fromHTML(html, { url, DOMParser })` is the
+server-side entry point (inject jsdom or linkedom). Frontmatter carries url, confidence,
+contentHash, and warnings so agents can branch on extraction quality and dedupe.
 
 ## Docs
 

@@ -104,6 +104,7 @@ export interface MantisMarkdownOptions {
   images?: "omit" | "alt" | "links";
   tables?: boolean;
   maxChars?: number;
+  budget?: "cut" | "outline";
 }
 
 export interface MantisArticle {

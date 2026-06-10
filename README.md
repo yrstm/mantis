@@ -88,7 +88,10 @@ const markdown = Mantis.toMarkdown(article, {
                               // contentType, confidence, contentHash, warnings
   images: "alt",              // "omit" (default) | "alt" (![alt](src)) | "links" ([alt](src))
   tables: true,               // GFM tables (default true)
-  maxChars: 8000              // token budget; cuts at block boundaries
+  maxChars: 8000,             // budget in characters (~4 chars per token); never cuts mid-block
+  budget: "outline"           // "cut" (default): keep the leading run of blocks
+                              // "outline": spend the budget on headings and the first
+                              // block of each section before remaining prose
 });
 const html = Mantis.toHTML(article);
 ```
@@ -132,7 +135,7 @@ Playwright or Puppeteer (the page the browser rendered, not the HTML the server 
 ```js
 await page.addScriptTag({ path: require.resolve("mantis") });
 const markdown = await page.evaluate(() =>
-  Mantis.toMarkdown(Mantis.extract(document), { frontmatter: true, maxChars: 12000 })
+  Mantis.toMarkdown(Mantis.extract(document), { frontmatter: true, maxChars: 12000, budget: "outline" })
 );
 ```
 
@@ -151,7 +154,10 @@ What the agent gets beyond plain Markdown:
   branch on `low_confidence` or `ambiguous_scope`, dedupe captures by hash, and cite the source.
 - The article object keeps `citations` with CSS selectors and text offsets — verifiable grounding
   back to exact DOM locations that markdown-only converters cannot give you.
-- `maxChars` enforces a token budget at block boundaries instead of mid-sentence.
+- `maxChars` enforces a budget at block boundaries instead of mid-sentence (budgets are in
+  characters, roughly 4 per token — mantis stays tokenizer-free on purpose). With
+  `budget: "outline"` a page that does not fit degrades like an outline — every heading and each
+  section's lead block survive before any further prose is added — instead of losing its tail.
 
 ## Demo
 
