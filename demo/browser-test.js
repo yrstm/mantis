@@ -65,7 +65,7 @@ async function main() {
   // happy path: overlay renders markdown from the live DOM
   await page.goto(`http://127.0.0.1:${PAGE_PORT}/`);
   await page.evaluate(loader);
-  await page.waitForSelector("#mantis-md-demo");
+  await page.waitForSelector("#mantis-md-demo", { state: "attached" });
   const markdown = await page.evaluate(
     () => document.getElementById("mantis-md-demo").shadowRoot.querySelector("textarea").value);
   assert(markdown.startsWith("---"), "frontmatter missing");
@@ -75,7 +75,7 @@ async function main() {
 
   // re-click replaces the overlay, never stacks a second one
   await page.evaluate(loader);
-  await page.waitForSelector("#mantis-md-demo");
+  await page.waitForSelector("#mantis-md-demo", { state: "attached" });
   const count = await page.evaluate(() => document.querySelectorAll("#mantis-md-demo").length);
   assert.strictEqual(count, 1, "overlays stacked on re-click");
   console.log("idempotent re-click: ok");
