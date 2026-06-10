@@ -198,9 +198,17 @@ test("renders Markdown and reader HTML", () => {
   const md = Mantis.toMarkdown(s);
   const html = Mantis.toHTML(s);
   assert.ok(md.includes("# Structured Story"));
+  assert.ok(md.includes("[source link](https://example.com/source)"));
   assert.ok(md.includes("| Quarter | Value |"));
   assert.ok(html.includes('<article class="mantis-reader">'));
   assert.ok(html.includes("<table>"));
+});
+test("extract options can disable optional collections", () => {
+  const slim = Mantis.extract(STRUCTURED, { includeLinks: false, includeImages: false, includeTables: false, maxBlocks: 2 });
+  assert.deepStrictEqual(slim.links, []);
+  assert.deepStrictEqual(slim.images, []);
+  assert.deepStrictEqual(slim.tables, []);
+  assert.strictEqual(slim.blocks.length, 2);
 });
 
 /* ---------- run(): POST happy path, CSP fallback, double-click guard ---------- */
@@ -239,6 +247,7 @@ async function runCase(fetchImpl) {
     assert.strictEqual(c.url, "https://news.example.com/story");
     assert.strictEqual(c.origin, "news.example.com");
     assert.ok(c.body.length === 3);
+    assert.strictEqual(c.article.object, "article");
   });
   test("run() shows the in-page confirmation", () =>
     assert.ok(ok.window.document.querySelector('div[style*="2147483647"]')));

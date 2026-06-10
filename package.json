@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "description": "Extract readable content from the current browser DOM.",
   "main": "mantis.js",
+  "types": "mantis.d.ts",
   "files": [
+    "demo/server.js",
+    "mantis.d.ts",
     "mantis.js",
     "llms.txt",
     "README.md",
@@ -16,7 +19,10 @@
   },
   "scripts": {
     "benchmark": "node benchmark.js",
-    "test": "node test.js"
+    "demo": "node demo/server.js",
+    "pack:check": "npm pack --dry-run",
+    "test": "node test.js",
+    "types:check": "tsc --noEmit --strict --lib dom,es2020 --module commonjs types-smoke.ts"
   },
   "keywords": [
     "readability",
@@ -32,6 +38,7 @@
     "url": "https://github.com/yrstm/mantis.git"
   },
   "devDependencies": {
-    "jsdom": "^25.0.0"
+    "jsdom": "^25.0.0",
+    "typescript": "^5.9.3"
   }
 }

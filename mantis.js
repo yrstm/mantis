@@ -59,6 +59,17 @@
     return (s || "").replace(/\\/g, "\\\\").replace(/([`*_{}\[\]()#+.!|>~-])/g, "\\$1");
   }
 
+  function defaults(options) {
+    options = options || {};
+    return {
+      maxBlocks: options.maxBlocks || 150,
+      minTextLength: options.minTextLength || 25,
+      includeLinks: options.includeLinks !== false,
+      includeImages: options.includeImages !== false,
+      includeTables: options.includeTables !== false
+    };
+  }
+
   function hashString(s) {
     var h = 2166136261;
     s = s || "";
@@ -205,11 +216,11 @@
     return out;
   }
 
-  function blocksFrom(scope, stopAt, doc) {
+  function blocksFrom(scope, stopAt, doc, options) {
     var out = [];
     var used = {};
     var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3");
-    for (var i = 0; i < nodes.length && out.length < 150; i++) {
+    for (var i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
       var el = nodes[i];
       if (!KEEP[el.tagName]) continue;
       if (hidden(el)) continue;
@@ -217,7 +228,7 @@
       var heading = /^H/.test(el.tagName);
       var t = textOf(el);
       if (!t) continue;
-      if (!heading && t.length < 25) continue;
+      if (!heading && t.length < options.minTextLength) continue;
       if (!heading && linkDensity(el) > 0.5) continue;
       var key = normalized(t);
       if (used[key]) continue;
@@ -229,7 +240,7 @@
         tag: el.tagName,
         level: type === "heading" ? parseInt(el.tagName.slice(1), 10) : 0,
         text: t.slice(0, 8000),
-        links: linksFromElement(el, doc),
+        links: options.includeLinks ? linksFromElement(el, doc) : [],
         source: {
           selector: selectorFor(el),
           index: out.length
@@ -441,11 +452,12 @@
     }
   }
 
-  function extract(doc) {
+  function extract(doc, options) {
+    options = defaults(options);
     var scopeInfo = findContent(doc);
     var scope = scopeInfo.el;
-    var blocks = scope ? blocksFrom(scope, scope, doc) : [];
-    if (blocks.length < 2 && doc.body) blocks = blocksFrom(doc.body, doc.body, doc);
+    var blocks = scope ? blocksFrom(scope, scope, doc, options) : [];
+    if (blocks.length < 2 && doc.body) blocks = blocksFrom(doc.body, doc.body, doc, options);
     var paragraphs = paragraphsFromBlocks(blocks);
     var sections = sectionsFromBlocks(blocks);
     var citations = citationsFromBlocks(blocks);
@@ -468,9 +480,9 @@
       blocks: blocks,
       sections: sections,
       citations: citations,
-      links: linksFrom(scope || doc.body, doc),
-      images: imagesFrom(scope || doc.body, doc),
-      tables: tablesFrom(scope || doc.body),
+      links: options.includeLinks ? linksFrom(scope || doc.body, doc) : [],
+      images: options.includeImages ? imagesFrom(scope || doc.body, doc) : [],
+      tables: options.includeTables ? tablesFrom(scope || doc.body) : [],
       selection: selectionFrom(doc),
       capturedAt: new Date().toISOString(),
       contentType: inferContentType(doc, scope),
@@ -510,6 +522,24 @@
     return out.join("\n");
   }
 
+  function markdownText(block) {
+    var text = block.text || "";
+    var links = block.links || [];
+    if (!links.length) return escapeMarkdown(text);
+    var out = "";
+    var index = 0;
+    for (var i = 0; i < links.length; i++) {
+      var label = links[i].text || links[i].href;
+      var at = text.indexOf(label, index);
+      if (at === -1) continue;
+      out += escapeMarkdown(text.slice(index, at));
+      out += "[" + escapeMarkdown(label) + "](" + links[i].href.replace(/\)/g, "%29") + ")";
+      index = at + label.length;
+    }
+    out += escapeMarkdown(text.slice(index));
+    return out || escapeMarkdown(text);
+  }
+
   function toMarkdown(article) {
     var out = [];
     if (article.title) out.push("# " + escapeMarkdown(article.title));
@@ -522,11 +552,11 @@
     }
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
-      if (b.type === "heading") out.push(new Array(Math.min(Math.max(b.level, 1), 6) + 1).join("#") + " " + escapeMarkdown(b.text));
-      else if (b.type === "blockquote") out.push("> " + escapeMarkdown(b.text));
+      if (b.type === "heading") out.push(new Array(Math.min(Math.max(b.level, 1), 6) + 1).join("#") + " " + markdownText(b));
+      else if (b.type === "blockquote") out.push("> " + markdownText(b));
       else if (b.type === "code") out.push("```\n" + b.text + "\n```");
-      else if (b.type === "list_item") out.push("- " + escapeMarkdown(b.text));
-      else out.push(escapeMarkdown(b.text));
+      else if (b.type === "list_item") out.push("- " + markdownText(b));
+      else out.push(markdownText(b));
     }
     var tables = article.tables || [];
     for (var t = 0; t < tables.length; t++) {
@@ -618,7 +648,7 @@
       type: "web", source: "Web", origin: host, url: w.location.href,
       title: a.title || host,
       byline: (a.byline ? a.byline + " - " : "") + "captured from the browser DOM",
-      hero: a.hero, captured: true, body: body
+      hero: a.hero, captured: true, body: body, article: a
     };
 
     function fallback() {

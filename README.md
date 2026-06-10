@@ -73,9 +73,39 @@ const markdown = Mantis.toMarkdown(article);
 const html = Mantis.toHTML(article);
 ```
 
+Options:
+
+```js
+const article = Mantis.extract(document, {
+  maxBlocks: 100,
+  minTextLength: 25,
+  includeLinks: true,
+  includeImages: true,
+  includeTables: true
+});
+```
+
+Stable fields: `title`, `byline`, `hero`, `url`, `canonicalUrl`, `text`, `paragraphs`, `blocks`,
+`sections`, `citations`, `links`, `images`, `tables`, `status`, `warnings`, `contentType`,
+`contentHash`, and `textHash`.
+
+Diagnostic fields: `confidence` and `diagnostics`. These are useful for debugging and ranking
+captures, but their exact scoring may change between releases.
+
 `Mantis.run(scriptElement)` is an optional bookmarklet helper. It extracts the page, posts the
 result to `{script origin}/api/crates`, shows a small confirmation, and falls back to `/save` if the
 post is blocked.
+
+## Demo
+
+Run a local bookmarklet receiver:
+
+```
+npm run demo
+```
+
+Open `http://127.0.0.1:8787`, drag the bookmarklet to your bookmarks bar, visit a page, and click
+the bookmarklet. The demo page shows the extracted article and full capture payload.
 
 ## Bookmarklet
 
