@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mantis markdown demo</title>
+  <style>
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 32px auto; max-width: 920px; padding: 0 16px; }
+    a.bookmarklet { display: inline-block; padding: 8px 12px; border: 1px solid #222; color: #111;
+                    text-decoration: none; border-radius: 4px; }
+    textarea { width: 100%; box-sizing: border-box; font: 12px/1.5 ui-monospace, monospace; padding: 8px; }
+    input[type="url"] { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; }
+    button { font: inherit; padding: 6px 14px; border: 1px solid #222; border-radius: 4px;
+             background: #111; color: #fff; cursor: pointer; }
+    code { background: #f5f5f5; padding: 2px 4px; }
+    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+    .muted { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Mantis &rarr; Markdown</h1>
+  <p>Drag this to your bookmarks bar, then click it on any page you are reading:</p>
+  <p><a class="bookmarklet" id="bm" href="#">Markdown this page</a></p>
+  <p class="muted">Mantis runs inside the page — the DOM you see, not the HTML the server sent — and
+     an overlay shows the Markdown with a copy button. Keep <code>npm run demo</code> running; it only
+     serves your working copy of <code>mantis.js</code>. Nothing leaves the page.</p>
+
+  <h2>No bookmarklet? Paste HTML</h2>
+  <p class="muted">Some sites' Content-Security-Policy blocks injected scripts. Copy the page's HTML
+     instead (devtools &rarr; copy outerHTML) and convert it here — same engine, via
+     <code>Mantis.fromHTML</code>, entirely in this tab.</p>
+  <textarea id="html-in" rows="8" placeholder="<html>…</html>" spellcheck="false"></textarea>
+  <div class="row">
+    <input type="url" id="url-in" placeholder="Original URL (optional — resolves relative links)">
+    <button id="convert">Convert</button>
+  </div>
+  <textarea id="md-out" rows="14" readonly spellcheck="false" placeholder="Markdown appears here"></textarea>
+  <div class="row">
+    <button id="copy">Copy</button>
+    <span class="muted" id="stats"></span>
+  </div>
+
+  <script src="/mantis.js"></script>
+  <script>
+    const code = "(function(){var s=document.createElement('script');" +
+      "s.src='" + location.origin + "/overlay.js?t='+Date.now();" +
+      "s.onerror=function(){alert('Mantis demo: is npm run demo still running?')};" +
+      "(document.body||document.documentElement).appendChild(s);})()";
+    document.getElementById("bm").setAttribute("href", "javascript:" + code);
+
+    document.getElementById("convert").addEventListener("click", () => {
+      const html = document.getElementById("html-in").value;
+      if (!html.trim()) return;
+      const article = Mantis.fromHTML(html, {
+        DOMParser: window.DOMParser,
+        url: document.getElementById("url-in").value || undefined
+      });
+      const markdown = Mantis.toMarkdown(article, { frontmatter: true, images: "alt" });
+      document.getElementById("md-out").value = markdown;
+      document.getElementById("stats").textContent =
+        `${article.contentType} · confidence ${article.confidence.toFixed(2)} · ${markdown.length} chars`;
+    });
+
+    document.getElementById("copy").addEventListener("click", () => {
+      const out = document.getElementById("md-out");
+      if (!out.value) return;
+      navigator.clipboard.writeText(out.value);
+    });
+  </script>
+</body>
+</html>

@@ -5,7 +5,7 @@
   "main": "mantis.js",
   "types": "mantis.d.ts",
   "files": [
-    "demo/server.js",
+    "demo/",
     "mantis.d.ts",
     "mantis.js",
     "llms.txt",

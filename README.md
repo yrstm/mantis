@@ -161,14 +161,21 @@ What the agent gets beyond plain Markdown:
 
 ## Demo
 
-Run a local bookmarklet receiver:
+The fastest way to see what mantis does to a page you are actually reading:
 
 ```
 npm run demo
 ```
 
-Open `http://127.0.0.1:8787`, drag the bookmarklet to your bookmarks bar, visit a page, and click
-the bookmarklet. The demo page shows the extracted article and full capture payload.
+Open `http://127.0.0.1:8787` and drag the **Markdown this page** bookmarklet to your bookmarks
+bar. Click it on any page in the same browser: mantis runs inside that page — the DOM you see,
+not the HTML the server sent — and an overlay shows the Markdown it produced, with a copy
+button and live toggles for frontmatter and the outline budget. The demo server only serves
+your working copy of `mantis.js`; the capture never leaves the page.
+
+Sites with a strict Content-Security-Policy block injected scripts. For those, paste the page's
+HTML (devtools → copy outerHTML) into the box on the demo page instead — same engine, via
+`fromHTML`, entirely in your browser.
 
 ## Bookmarklet
 
