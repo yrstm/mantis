@@ -1,7 +1,7 @@
 # mantis
 
 Mantis extracts readable content from the rendered browser DOM. Use it to power save-for-later and
-bookmarking tools, or to convert any page into clean, token-cheap Markdown for LLM agents — same
+bookmarking tools, or to convert any page into clean, token-cheap Markdown for LLM agents. Same
 extraction, two outputs.
 
 It is a small, dependency-free JavaScript library for bookmarklets, browser extensions, headless
@@ -126,7 +126,7 @@ post is blocked.
 ## Use with AI agents
 
 Mantis is the embeddable last mile for agents that already control a browser context: it converts
-the DOM the browser actually rendered — after JavaScript, with hidden chrome removed — into
+the DOM the browser actually rendered, after JavaScript and with hidden chrome removed, into
 Markdown that is cheap to put in a context window. It does not fetch URLs and is not a scraping
 framework; pair it with whatever loads the page.
 
@@ -152,12 +152,12 @@ What the agent gets beyond plain Markdown:
 
 - `frontmatter: true` carries `url`, `confidence`, `contentHash`, and `warnings`, so an agent can
   branch on `low_confidence` or `ambiguous_scope`, dedupe captures by hash, and cite the source.
-- The article object keeps `citations` with CSS selectors and text offsets — verifiable grounding
-  back to exact DOM locations that markdown-only converters cannot give you.
-- `maxChars` enforces a budget at block boundaries instead of mid-sentence (budgets are in
-  characters, roughly 4 per token — mantis stays tokenizer-free on purpose). With
-  `budget: "outline"` a page that does not fit degrades like an outline — every heading and each
-  section's lead block survive before any further prose is added — instead of losing its tail.
+- The article object keeps `citations` with CSS selectors and text offsets, so every claim can be
+  traced back to an exact DOM location. Markdown-only converters cannot do that.
+- `maxChars` enforces a budget at block boundaries instead of mid-sentence. Budgets are in
+  characters, roughly 4 per token, because mantis stays tokenizer-free on purpose. With
+  `budget: "outline"` a page that does not fit keeps every heading and each section's lead block
+  before any further prose, instead of losing its tail.
 
 ## Demo
 
@@ -193,7 +193,7 @@ npm run perf
 
 The benchmark uses fixed HTML snapshots in `fixtures/` and should stay green when extraction
 behavior changes. `perf.js` is the render-path harness: a fixed corpus, a fixed metric
-(microseconds per `toMarkdown` pass), and a fidelity gate — renderer changes are kept only when
+(microseconds per `toMarkdown` pass), and a fidelity gate. Renderer changes are kept only when
 the gate stays green and the metric does not regress.
 
 ## License
