@@ -27,6 +27,18 @@ export interface MantisTable {
   source: MantisSource;
 }
 
+export interface MantisInlineRun {
+  type: "text" | "link" | "code" | "strong" | "em";
+  text: string;
+  href?: string;
+}
+
+export interface MantisListMeta {
+  depth: number;
+  ordered: boolean;
+  index: number;
+}
+
 export interface MantisBlock {
   object: "block";
   type: "paragraph" | "blockquote" | "code" | "list_item" | "heading";
@@ -34,6 +46,9 @@ export interface MantisBlock {
   level: number;
   text: string;
   links: Array<Pick<MantisLink, "text" | "href">>;
+  runs?: MantisInlineRun[];
+  list?: MantisListMeta;
+  language?: string;
   source: MantisSource;
 }
 
@@ -75,6 +90,22 @@ export interface MantisExtractOptions {
   includeTables?: boolean;
 }
 
+export interface MantisDOMParserLike {
+  new (): { parseFromString(html: string, type: string): Document };
+}
+
+export interface MantisFromHTMLOptions extends MantisExtractOptions {
+  url?: string;
+  DOMParser?: MantisDOMParserLike;
+}
+
+export interface MantisMarkdownOptions {
+  frontmatter?: boolean;
+  images?: "omit" | "alt" | "links";
+  tables?: boolean;
+  maxChars?: number;
+}
+
 export interface MantisArticle {
   object: "article";
   title: string;
@@ -106,6 +137,7 @@ export interface MantisArticle {
 }
 
 export function extract(doc: Document, options?: MantisExtractOptions): MantisArticle;
-export function toMarkdown(article: Partial<MantisArticle>): string;
+export function fromHTML(html: string, options?: MantisFromHTMLOptions): MantisArticle;
+export function toMarkdown(article: Partial<MantisArticle>, options?: MantisMarkdownOptions): string;
 export function toHTML(article: Partial<MantisArticle>): string;
 export function run(scriptEl?: HTMLScriptElement): void;

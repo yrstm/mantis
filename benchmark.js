@@ -34,6 +34,12 @@ function scoreFixture(fixture) {
   for (const [key, value] of Object.entries(fixture.metadata || {})) {
     checks.push({ ok: actual[key] === value, label: `${key} is ${value}` });
   }
+  if (fixture.markdown) {
+    const markdown = Mantis.toMarkdown(actual);
+    for (const text of fixture.markdown) {
+      checks.push({ ok: markdown.includes(text), label: `markdown includes ${JSON.stringify(text)}` });
+    }
+  }
   for (const [text, count] of Object.entries(fixture.counts || {})) {
     checks.push({ ok: occurrences(body, text) === count, label: `${text} occurs ${count} time(s)` });
   }

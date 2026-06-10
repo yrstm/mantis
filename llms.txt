@@ -1,14 +1,20 @@
 # Mantis
 
-Mantis extracts readable content from the current browser DOM.
+Mantis extracts readable content from the rendered browser DOM and converts it to structured JSON
+or clean Markdown. `Mantis.extract(document)` returns the canonical article object;
+`Mantis.toMarkdown(article, { frontmatter, images, tables, maxChars })` renders token-efficient
+Markdown with inline links, emphasis, nested lists, and fenced code; `Mantis.fromHTML(html, { url,
+DOMParser })` is the server-side entry point (inject jsdom or linkedom). Frontmatter carries url,
+confidence, contentHash, and warnings so agents can branch on extraction quality and dedupe.
 
 ## Docs
 
-- [README](https://github.com/yrstm/mantis#readme): API overview, bookmarklet helper, and development commands.
+- [README](https://github.com/yrstm/mantis#readme): API overview, AI agent patterns (Playwright, jsdom), bookmarklet helper, and development commands.
 - [Source](https://github.com/yrstm/mantis/blob/main/mantis.js): Runtime library entry point.
 - [Types](https://github.com/yrstm/mantis/blob/main/mantis.d.ts): TypeScript API declarations.
 - [Tests](https://github.com/yrstm/mantis/blob/main/test.js): Contract coverage for extraction, structured output, Markdown, HTML, and bookmarklet behavior.
-- [Benchmarks](https://github.com/yrstm/mantis/blob/main/benchmark.js): Fixed fixture evaluation for extraction quality.
+- [Benchmarks](https://github.com/yrstm/mantis/blob/main/benchmark.js): Fixed fixture evaluation for extraction and Markdown quality.
+- [Perf](https://github.com/yrstm/mantis/blob/main/perf.js): Fixed-metric render-path harness for toMarkdown.
 - [Demo](https://github.com/yrstm/mantis/blob/main/demo/server.js): Local bookmarklet receiver for trying Mantis in a browser.
 
 ## Package

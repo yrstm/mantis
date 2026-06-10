@@ -12,7 +12,8 @@
  *
  * API (no side effects unless asked):
  *   Mantis.extract(document) -> article object with text, blocks, sections, links, images, tables
- *   Mantis.toMarkdown(article) -> Markdown string
+ *   Mantis.fromHTML(html, opts)  -> extract() over a parsed HTML string (Node: inject a DOMParser)
+ *   Mantis.toMarkdown(article, opts) -> Markdown string (frontmatter, images, tables, maxChars)
  *   Mantis.toHTML(article)     -> reader HTML string
  *   Mantis.run(scriptEl)     -> extract + POST to the origin the script was
  *                                    loaded from, with an in-page confirmation.
@@ -37,8 +38,8 @@
   var BAD = /comment|reply|sidebar|footer|header|navbar|nav-|menu|share|social|promo|related|recommend|advert|sponsor|cookie|newsletter|subscribe|masthead|breadcrumb|disclaimer|meter-banner|jump-to-recipe/i;
   var GOOD = /article|body|content|entry|main|markdown|markup|post|story|text|docs|recipe/i;
   var HIDDEN_CLASS = /(^|\s)(hidden|collapsed|visually-hidden|sr-only|screen-reader|u-hidden|is-hidden)(\s|$)/i;
-  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1 };
-  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading" };
+  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1 };
+  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading" };
 
   function textOf(el) { return (el.textContent || "").replace(/\s+/g, " ").trim(); }
 
@@ -48,15 +49,49 @@
 
   function absoluteUrl(doc, value) {
     if (!value) return "";
-    try { return new doc.defaultView.URL(value, doc.location && doc.location.href).href; } catch (e) { return value; }
+    var w = doc.defaultView;
+    var Ctor = (w && w.URL) || (typeof URL !== "undefined" ? URL : null);
+    if (!Ctor) return value;
+    var base = (doc.location && doc.location.href) || doc.__mantisBase || undefined;
+    try { return new Ctor(value, base).href; } catch (e) { return value; }
   }
 
   function escapeHtml(s) {
     return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
-  function escapeMarkdown(s) {
-    return (s || "").replace(/\\/g, "\\\\").replace(/([`*_{}\[\]()#+.!|>~-])/g, "\\$1");
+  // Minimal context-aware Markdown escaping. Escaping every punctuation mark
+  // (the turndown-style approach) litters prose with backslashes and wastes
+  // tokens; only characters that can change meaning where they appear are
+  // escaped: inline specials anywhere, block leaders at line starts only.
+  var INLINE_ESCAPE = /[\\`*_[\]]|<(?=[A-Za-z/!?])/g;
+  var INLINE_TEST = /[\\`*_[\]<]/;
+
+  function escapeInline(s) {
+    s = s || "";
+    return INLINE_TEST.test(s) ? s.replace(INLINE_ESCAPE, "\\$&") : s;
+  }
+
+  function escapeLeader(s) {
+    var c = s.charCodeAt(0);
+    // only # > + - and digits can open a block construct
+    if (c === 35 || c === 62 || c === 43 || c === 45 || (c >= 48 && c <= 57)) {
+      return s
+        .replace(/^(\d{1,9})([.)])(\s|$)/, "$1\\$2$3")
+        .replace(/^([#>])/, "\\$1")
+        .replace(/^([-+])(\s)/, "\\$1$2");
+    }
+    return s;
+  }
+
+  function escapeCell(s) {
+    return escapeInline(s).replace(/\|/g, "\\|");
+  }
+
+  function linkDestination(href) {
+    return (href || "").replace(/[()\s]/g, function (c) {
+      return c === "(" ? "%28" : c === ")" ? "%29" : "%20";
+    });
   }
 
   function defaults(options) {
@@ -216,36 +251,134 @@
     return out;
   }
 
+  // Inline runs preserve link, code, and emphasis structure inside a block.
+  // The concatenated run text equals the block's flattened text, so offsets
+  // and citations keep working against either view.
+  function inlineRuns(el, doc, skipLists, includeLinks) {
+    var runs = [];
+    var formatted = false;
+    function push(type, href, raw) {
+      if (!raw) return;
+      var last = runs.length ? runs[runs.length - 1] : null;
+      if (last && last.type === type && (last.href || "") === href) { last.text += raw; return; }
+      var run = { type: type, text: raw };
+      if (href) run.href = href;
+      runs.push(run);
+    }
+    function walk(node, type, href) {
+      for (var n = node.firstChild; n; n = n.nextSibling) {
+        if (n.nodeType === 3) { push(type, href, n.nodeValue); continue; }
+        if (n.nodeType !== 1) continue;
+        var tag = n.tagName;
+        if (skipLists && (tag === "UL" || tag === "OL")) continue;
+        if (tag === "BR") { push(type, href, " "); continue; }
+        if (type === "text" && tag === "A" && includeLinks) {
+          var h = absoluteUrl(doc, attr(n, "href"));
+          if (h) { formatted = true; walk(n, "link", h); continue; }
+        }
+        if (type === "text" && tag === "CODE") { formatted = true; walk(n, "code", ""); continue; }
+        if (type === "text" && (tag === "STRONG" || tag === "B")) { formatted = true; walk(n, "strong", ""); continue; }
+        if (type === "text" && (tag === "EM" || tag === "I")) { formatted = true; walk(n, "em", ""); continue; }
+        walk(n, type, href);
+      }
+    }
+    walk(el, "text", "");
+    // collapse whitespace across run boundaries the way textOf() does
+    var kept = [];
+    var afterSpace = true;
+    for (var i = 0; i < runs.length; i++) {
+      var text = runs[i].text.replace(/\s+/g, " ");
+      if (afterSpace && text.charAt(0) === " ") text = text.slice(1);
+      if (!text) continue;
+      afterSpace = text.charAt(text.length - 1) === " ";
+      runs[i].text = text;
+      kept.push(runs[i]);
+    }
+    while (kept.length) {
+      var tail = kept[kept.length - 1];
+      tail.text = tail.text.replace(/\s+$/, "");
+      if (tail.text) break;
+      kept.pop();
+    }
+    var flat = "";
+    for (var j = 0; j < kept.length; j++) flat += kept[j].text;
+    return { runs: kept, text: flat, formatted: formatted };
+  }
+
+  function rawCodeText(el) {
+    return (el.textContent || "").replace(/^[\r\n]+/, "").replace(/\s+$/, "");
+  }
+
+  function codeLanguage(el) {
+    var code = el.getElementsByTagName("code")[0];
+    var hint = classText(el) + " " + (code ? classText(code) : "") + " " +
+      attr(el, "data-lang") + " " + attr(el, "data-language");
+    var m = /(?:^|\s)(?:language|lang|highlight(?:-source)?)-([\w#+-]+)/i.exec(hint);
+    return m ? m[1].toLowerCase() : "";
+  }
+
+  function listMeta(el, stopAt) {
+    var parent = el.parentElement;
+    var ordered = !!(parent && parent.tagName === "OL");
+    var depth = 0;
+    for (var n = parent; n && n !== stopAt && n.nodeType === 1; n = n.parentElement) {
+      if (n.tagName === "UL" || n.tagName === "OL") depth++;
+    }
+    if (depth) depth--;
+    var index = 1;
+    for (var sib = el.previousElementSibling; sib; sib = sib.previousElementSibling) {
+      if (sib.tagName === "LI") index++;
+    }
+    if (ordered) {
+      var start = parseInt(attr(parent, "start"), 10);
+      if (!isNaN(start)) index += start - 1;
+    }
+    return { depth: depth, ordered: ordered, index: index };
+  }
+
   function blocksFrom(scope, stopAt, doc, options) {
     var out = [];
     var used = {};
-    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3");
+    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6");
     for (var i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
       var el = nodes[i];
       if (!KEEP[el.tagName]) continue;
       if (hidden(el)) continue;
       if (el !== scope && flagged(el, stopAt || scope)) continue;
       var heading = /^H/.test(el.tagName);
-      var t = textOf(el);
-      if (!t) continue;
-      if (!heading && t.length < options.minTextLength) continue;
+      var full = textOf(el);
+      if (!full) continue;
+      if (!heading && full.length < options.minTextLength) continue;
       if (!heading && linkDensity(el) > 0.5) continue;
+      var type = BLOCK_TYPE[el.tagName] || "paragraph";
+      var item = el.tagName === "LI";
+      // list items keep only their direct text; nested lists become their own blocks
+      var inline = type === "code" ? null : inlineRuns(el, doc, item, options.includeLinks);
+      var t = type === "code" ? rawCodeText(el) : inline.text;
+      if (!t) continue;
+      if (item && t.length < options.minTextLength) continue;
       var key = normalized(t);
       if (used[key]) continue;
       used[key] = true;
-      var type = BLOCK_TYPE[el.tagName] || "paragraph";
-      out.push({
+      var block = {
         object: "block",
         type: type,
         tag: el.tagName,
-        level: type === "heading" ? parseInt(el.tagName.slice(1), 10) : 0,
+        level: heading ? parseInt(el.tagName.slice(1), 10) : 0,
         text: t.slice(0, 8000),
         links: options.includeLinks ? linksFromElement(el, doc) : [],
         source: {
           selector: selectorFor(el),
           index: out.length
         }
-      });
+      };
+      if (inline && inline.formatted) block.runs = inline.runs;
+      if (item) block.list = listMeta(el, scope);
+      if (type === "code") {
+        var language = codeLanguage(el);
+        if (language) block.language = language;
+      }
+      out.push(block);
     }
     return out;
   }
@@ -463,7 +596,7 @@
     var citations = citationsFromBlocks(blocks);
     var h1 = doc.querySelector("h1");
     var title = meta(doc, "og:title") || meta(doc, "twitter:title") || (h1 && textOf(h1)) || cleanTitle(doc.title || "");
-    var pageUrl = doc.location && doc.location.href ? doc.location.href : "";
+    var pageUrl = doc.location && doc.location.href ? doc.location.href : (doc.__mantisBase || "");
     var article = {
       object: "article",
       title: title,
@@ -514,56 +647,173 @@
     if (!headers.length && rows.length) headers = rows.shift();
     if (!headers.length) return "";
     var out = [];
-    out.push("| " + headers.map(escapeMarkdown).join(" | ") + " |");
-    out.push("| " + headers.map(function () { return "---"; }).join(" | ") + " |");
+    out.push("| " + headers.map(escapeCell).join(" | ") + " |");
+    var sep = "|";
+    for (var h = 0; h < headers.length; h++) sep += " --- |";
+    out.push(sep);
     for (var r = 0; r < rows.length; r++) {
-      out.push("| " + rows[r].map(escapeMarkdown).join(" | ") + " |");
+      out.push("| " + rows[r].map(escapeCell).join(" | ") + " |");
     }
     return out.join("\n");
   }
 
+  function codeSpan(text) {
+    var marks = "`";
+    while (text.indexOf(marks) !== -1) marks += "`";
+    var pad = text.charAt(0) === "`" || text.charAt(text.length - 1) === "`" ? " " : "";
+    return marks + pad + text + pad + marks;
+  }
+
+  function renderRuns(runs) {
+    var out = "";
+    for (var i = 0; i < runs.length; i++) {
+      var run = runs[i];
+      if (run.type === "text") { out += escapeInline(run.text); continue; }
+      // edge whitespace (a single collapsed space at most) moves outside the
+      // markers so emphasis stays valid
+      var text = run.text;
+      var head = "", tail = "";
+      if (text.charAt(0) === " ") { head = " "; text = text.slice(1); }
+      if (text && text.charAt(text.length - 1) === " ") { tail = " "; text = text.slice(0, -1); }
+      out += head;
+      if (text) {
+        if (run.type === "link") out += "[" + escapeInline(text) + "](" + linkDestination(run.href) + ")";
+        else if (run.type === "code") out += codeSpan(text);
+        else if (run.type === "strong") out += "**" + escapeInline(text) + "**";
+        else if (run.type === "em") out += "*" + escapeInline(text) + "*";
+        else out += escapeInline(text);
+      }
+      out += tail;
+    }
+    return out;
+  }
+
+  // legacy weave for blocks that carry links but no inline runs
   function markdownText(block) {
     var text = block.text || "";
     var links = block.links || [];
-    if (!links.length) return escapeMarkdown(text);
+    if (!links.length) return escapeInline(text);
     var out = "";
     var index = 0;
     for (var i = 0; i < links.length; i++) {
       var label = links[i].text || links[i].href;
       var at = text.indexOf(label, index);
       if (at === -1) continue;
-      out += escapeMarkdown(text.slice(index, at));
-      out += "[" + escapeMarkdown(label) + "](" + links[i].href.replace(/\)/g, "%29") + ")";
+      out += escapeInline(text.slice(index, at));
+      out += "[" + escapeInline(label) + "](" + linkDestination(links[i].href) + ")";
       index = at + label.length;
     }
-    out += escapeMarkdown(text.slice(index));
-    return out || escapeMarkdown(text);
+    out += escapeInline(text.slice(index));
+    return out || escapeInline(text);
   }
 
-  function toMarkdown(article) {
-    var out = [];
-    if (article.title) out.push("# " + escapeMarkdown(article.title));
-    if (article.byline) out.push(escapeMarkdown(article.byline));
-    var blocks = article.blocks || [];
+  function inlineMarkdown(block) {
+    return block.runs && block.runs.length ? renderRuns(block.runs) : markdownText(block);
+  }
+
+  function fencedCode(block) {
+    var text = block.text || "";
+    var fence = "```";
+    while (text.indexOf(fence) !== -1) fence += "`";
+    return fence + (block.language || "") + "\n" + text + "\n" + fence;
+  }
+
+  // four-space indents nest correctly under both "- " and "1. " markers
+  function listItemMarkdown(block) {
+    var meta = block.list;
+    var indent = "";
+    for (var d = meta ? meta.depth : 0; d > 0; d--) indent += "    ";
+    var marker = meta && meta.ordered ? meta.index + ". " : "- ";
+    return indent + marker + escapeLeader(inlineMarkdown(block));
+  }
+
+  function yamlEscape(value) {
+    return '"' + String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+  }
+
+  function frontmatterFor(article) {
+    var out = ["---"];
+    var pairs = [
+      ["title", article.title], ["byline", article.byline], ["site", article.siteName],
+      ["url", article.canonicalUrl || article.url], ["published", article.publishedAt],
+      ["modified", article.modifiedAt], ["captured", article.capturedAt],
+      ["language", article.language], ["contentType", article.contentType],
+      ["contentHash", article.contentHash], ["textHash", article.textHash]
+    ];
+    for (var i = 0; i < pairs.length; i++) {
+      if (pairs[i][1]) out.push(pairs[i][0] + ": " + yamlEscape(pairs[i][1]));
+    }
+    if (typeof article.confidence === "number") out.push("confidence: " + article.confidence);
+    if (article.warnings && article.warnings.length) out.push("warnings: [" + article.warnings.join(", ") + "]");
+    out.push("---");
+    return out.join("\n");
+  }
+
+  var HASHES = ["#", "##", "###", "####", "#####", "######"];
+
+  function toMarkdown(article, options) {
+    options = options || {};
+    var images = options.images || "omit";
+    var maxChars = options.maxChars > 0 ? options.maxChars : 0;
+    var parts = [];
+    var length = 0;
+    // budget cuts at block boundaries; the first part always survives
+    function add(part) {
+      if (!part) return true;
+      var next = length + part.length + (parts.length ? 2 : 0);
+      if (maxChars && parts.length && next > maxChars) return false;
+      parts.push(part);
+      length = next;
+      return true;
+    }
+    if (options.frontmatter) add(frontmatterFor(article));
+    if (article.title) add("# " + escapeInline(article.title));
+    if (article.byline) add(escapeLeader(escapeInline(article.byline)));
+    var blocks = article.blocks && article.blocks.length ? article.blocks : [];
     if (!blocks.length && article.paragraphs) {
-      for (var p = 0; p < article.paragraphs.length; p++) {
-        blocks.push({ type: "paragraph", text: article.paragraphs[p] });
-      }
+      blocks = article.paragraphs.map(function (text) { return { type: "paragraph", text: text }; });
     }
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
-      if (b.type === "heading") out.push(new Array(Math.min(Math.max(b.level, 1), 6) + 1).join("#") + " " + markdownText(b));
-      else if (b.type === "blockquote") out.push("> " + markdownText(b));
-      else if (b.type === "code") out.push("```\n" + b.text + "\n```");
-      else if (b.type === "list_item") out.push("- " + markdownText(b));
-      else out.push(markdownText(b));
+      // the page H1 usually repeats the title; emit it once
+      if (i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title) continue;
+      var ok;
+      if (b.type === "heading") {
+        ok = add(HASHES[Math.min(Math.max(b.level || 1, 1), 6) - 1] + " " + inlineMarkdown(b));
+      } else if (b.type === "blockquote") {
+        ok = add("> " + escapeLeader(inlineMarkdown(b)));
+      } else if (b.type === "code") {
+        ok = add(fencedCode(b));
+      } else if (b.type === "list_item") {
+        var lines = [listItemMarkdown(b)];
+        while (i + 1 < blocks.length && blocks[i + 1].type === "list_item") {
+          i++;
+          lines.push(listItemMarkdown(blocks[i]));
+        }
+        ok = add(lines.join("\n"));
+      } else {
+        ok = add(escapeLeader(inlineMarkdown(b)));
+      }
+      if (!ok) break;
     }
-    var tables = article.tables || [];
-    for (var t = 0; t < tables.length; t++) {
-      var md = tableMarkdown(tables[t]);
-      if (md) out.push(md);
+    if (options.tables !== false) {
+      var tables = article.tables || [];
+      for (var t = 0; t < tables.length; t++) {
+        var md = tableMarkdown(tables[t]);
+        if (md && !add(md)) break;
+      }
     }
-    return out.join("\n\n").trim();
+    if (images === "alt" || images === "links") {
+      var imgs = article.images || [];
+      var rendered = [];
+      for (var m = 0; m < imgs.length; m++) {
+        var alt = escapeInline(imgs[m].alt || "image");
+        var dest = linkDestination(imgs[m].src);
+        rendered.push(images === "alt" ? "![" + alt + "](" + dest + ")" : "[" + alt + "](" + dest + ")");
+      }
+      if (rendered.length) add(rendered.join("\n"));
+    }
+    return parts.join("\n\n").trim();
   }
 
   function toHTML(article) {
@@ -576,14 +826,40 @@
         blocks.push({ type: "paragraph", text: article.paragraphs[p] });
       }
     }
+    // consecutive list items share one list; nested lists open inside their parent item
+    var stack = [];
+    function closeLists(toDepth) {
+      while (stack.length > toDepth) {
+        var top = stack.pop();
+        if (top.openItem) out.push("</li>");
+        out.push(top.kind === "ol" ? "</ol>" : "</ul>");
+      }
+    }
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
+      if (i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title) continue;
+      if (b.type === "list_item") {
+        var want = (b.list ? b.list.depth : 0) + 1;
+        var kind = b.list && b.list.ordered ? "ol" : "ul";
+        if (stack.length > want) closeLists(want);
+        if (stack.length === want && stack[want - 1].kind !== kind) closeLists(want - 1);
+        while (stack.length < want) {
+          out.push(kind === "ol" ? "<ol>" : "<ul>");
+          stack.push({ kind: kind, openItem: false });
+        }
+        var top = stack[stack.length - 1];
+        if (top.openItem) out.push("</li>");
+        out.push("<li>" + escapeHtml(b.text));
+        top.openItem = true;
+        continue;
+      }
+      closeLists(0);
       if (b.type === "heading") out.push("<h" + b.level + ">" + escapeHtml(b.text) + "</h" + b.level + ">");
       else if (b.type === "blockquote") out.push("<blockquote>" + escapeHtml(b.text) + "</blockquote>");
-      else if (b.type === "code") out.push("<pre><code>" + escapeHtml(b.text) + "</code></pre>");
-      else if (b.type === "list_item") out.push("<ul><li>" + escapeHtml(b.text) + "</li></ul>");
+      else if (b.type === "code") out.push("<pre><code" + (b.language ? ' class="language-' + escapeHtml(b.language) + '"' : "") + ">" + escapeHtml(b.text) + "</code></pre>");
       else out.push("<p>" + escapeHtml(b.text) + "</p>");
     }
+    closeLists(0);
     var tables = article.tables || [];
     for (var t = 0; t < tables.length; t++) {
       var table = tables[t];
@@ -604,6 +880,18 @@
     }
     out.push("</article>");
     return out.join("");
+  }
+
+  // Server-side entry point: parse an HTML string with the environment's
+  // DOMParser (browser) or an injected one (jsdom/linkedom in Node). Mantis
+  // never fetches URLs itself; in a real browser context prefer extract(document).
+  function fromHTML(html, options) {
+    options = options || {};
+    var Parser = options.DOMParser || (typeof DOMParser !== "undefined" ? DOMParser : null);
+    if (!Parser) throw new Error("Mantis.fromHTML needs a DOMParser; in Node pass { DOMParser } from jsdom or linkedom");
+    var doc = new Parser().parseFromString(String(html || ""), "text/html");
+    if (options.url) doc.__mantisBase = String(options.url);
+    return extract(doc, options);
   }
 
   /* ---------- the bookmarklet flow: capture, seal, confirm ---------- */
@@ -676,5 +964,5 @@
     }
   }
 
-  return { extract: extract, toMarkdown: toMarkdown, toHTML: toHTML, run: run };
+  return { extract: extract, fromHTML: fromHTML, toMarkdown: toMarkdown, toHTML: toHTML, run: run };
 });

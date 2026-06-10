@@ -1,30 +1,40 @@
 # mantis
 
-Mantis extracts readable content from the current browser DOM.
+Mantis extracts readable content from the rendered browser DOM. Use it to power save-for-later and
+bookmarking tools, or to convert any page into clean, token-cheap Markdown for LLM agents — same
+extraction, two outputs.
 
-It is a small, dependency-free JavaScript library for bookmarklets, browser extensions, and client
-side capture tools.
+It is a small, dependency-free JavaScript library for bookmarklets, browser extensions, headless
+browser scripts, and client side capture tools.
 
 ## What it does
 
 - Finds the main readable container in a document.
 - Returns metadata, text, blocks, sections, links, images, tables, confidence, and diagnostics.
+- Renders the same article object as Markdown (inline links, emphasis, nested lists, fenced code)
+  or reader HTML.
 - Filters navigation, comments, ads, hidden DOM, and repeated responsive content.
 - Runs in the page without fetching the URL again.
 
 ## API
 
-Node:
-
-```js
-const Mantis = require("mantis");
-const article = Mantis.extract(document);
-```
-
 Browser:
 
 ```js
 const article = Mantis.extract(document);
+const markdown = Mantis.toMarkdown(article);
+```
+
+Node (inject a DOM parser; mantis itself stays dependency-free and never fetches URLs):
+
+```js
+const { JSDOM } = require("jsdom");
+const Mantis = require("mantis");
+
+const article = Mantis.fromHTML(html, {
+  url: "https://example.com/post",
+  DOMParser: new JSDOM("").window.DOMParser
+});
 ```
 
 Result shape:
@@ -47,6 +57,7 @@ Result shape:
     {
       type: "paragraph",
       text: "First paragraph",
+      runs: [{ type: "text", text: "First " }, { type: "strong", text: "paragraph" }],
       source: { selector: "body > article:nth-of-type(1) > p:nth-of-type(1)", index: 0 }
     }
   ],
@@ -66,14 +77,27 @@ Result shape:
 }
 ```
 
+Blocks carry optional fidelity fields: `runs` (inline text, links, code, bold, italics), `list`
+(`depth`, `ordered`, `index` for nested and ordered lists), and `language` (code fence hint).
+
 Format helpers:
 
 ```js
-const markdown = Mantis.toMarkdown(article);
+const markdown = Mantis.toMarkdown(article, {
+  frontmatter: true,          // YAML header: title, byline, url, published, captured,
+                              // contentType, confidence, contentHash, warnings
+  images: "alt",              // "omit" (default) | "alt" (![alt](src)) | "links" ([alt](src))
+  tables: true,               // GFM tables (default true)
+  maxChars: 8000              // token budget; cuts at block boundaries
+});
 const html = Mantis.toHTML(article);
 ```
 
-Options:
+Markdown output keeps inline links, `code`, **bold**, and *italics*; renders ordered and nested
+lists, H1-H6, and fenced code with the page's language hint; and escapes only characters that
+would change meaning, so prose is not littered with backslashes.
+
+Extract options:
 
 ```js
 const article = Mantis.extract(document, {
@@ -95,6 +119,39 @@ captures, but their exact scoring may change between releases.
 `Mantis.run(scriptElement)` is an optional bookmarklet helper. It extracts the page, posts the
 result to `{script origin}/api/crates`, shows a small confirmation, and falls back to `/save` if the
 post is blocked.
+
+## Use with AI agents
+
+Mantis is the embeddable last mile for agents that already control a browser context: it converts
+the DOM the browser actually rendered — after JavaScript, with hidden chrome removed — into
+Markdown that is cheap to put in a context window. It does not fetch URLs and is not a scraping
+framework; pair it with whatever loads the page.
+
+Playwright or Puppeteer (the page the browser rendered, not the HTML the server sent):
+
+```js
+await page.addScriptTag({ path: require.resolve("mantis") });
+const markdown = await page.evaluate(() =>
+  Mantis.toMarkdown(Mantis.extract(document), { frontmatter: true, maxChars: 12000 })
+);
+```
+
+Static HTML you already have (server side, via jsdom or linkedom):
+
+```js
+const { JSDOM } = require("jsdom");
+const Mantis = require("mantis");
+const article = Mantis.fromHTML(html, { url, DOMParser: new JSDOM("").window.DOMParser });
+const markdown = Mantis.toMarkdown(article, { frontmatter: true });
+```
+
+What the agent gets beyond plain Markdown:
+
+- `frontmatter: true` carries `url`, `confidence`, `contentHash`, and `warnings`, so an agent can
+  branch on `low_confidence` or `ambiguous_scope`, dedupe captures by hash, and cite the source.
+- The article object keeps `citations` with CSS selectors and text offsets — verifiable grounding
+  back to exact DOM locations that markdown-only converters cannot give you.
+- `maxChars` enforces a token budget at block boundaries instead of mid-sentence.
 
 ## Demo
 
@@ -125,10 +182,13 @@ javascript:(function(){
 npm install
 npm test
 npm run benchmark
+npm run perf
 ```
 
 The benchmark uses fixed HTML snapshots in `fixtures/` and should stay green when extraction
-behavior changes.
+behavior changes. `perf.js` is the render-path harness: a fixed corpus, a fixed metric
+(microseconds per `toMarkdown` pass), and a fidelity gate — renderer changes are kept only when
+the gate stays green and the metric does not regress.
 
 ## License
 

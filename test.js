@@ -211,6 +211,103 @@ test("extract options can disable optional collections", () => {
   assert.strictEqual(slim.blocks.length, 2);
 });
 
+/* ---------- markdown fidelity: inline runs, lists, fences, escaping ---------- */
+const RICH = new JSDOM(`<!doctype html><html><head><title>Rich Markdown Page</title></head><body><article>
+<h1>Rich Markdown Page</h1>
+<p>Inline content keeps <strong>bold words</strong>, some <em>emphasis</em>, inline <code>code()</code>, and a <a href="/rel">relative link</a> intact.</p>
+<p>Specials like *stars*, [brackets], and 1.5 numbers survive. Plain sentences stay unescaped.</p>
+<h4>Fourth level heading</h4>
+<ol start="3">
+  <li>third ordered item with enough text to be kept around</li>
+  <li>fourth ordered item with enough text to be kept around
+    <ul><li>nested unordered child item with enough text to be kept</li></ul>
+  </li>
+</ol>
+<pre class="language-js">function x() {
+  return 1;
+}</pre>
+</article></body></html>`, { url: "https://example.com/rich" }).window.document;
+const rich = Mantis.extract(RICH);
+const richMd = Mantis.toMarkdown(rich);
+
+test("captures inline runs whose text matches the block", () => {
+  const p = rich.blocks.find((b) => b.runs);
+  assert.ok(p.runs.some((r) => r.type === "strong" && r.text === "bold words"));
+  assert.ok(p.runs.some((r) => r.type === "link" && r.href === "https://example.com/rel"));
+  assert.strictEqual(p.runs.map((r) => r.text).join(""), p.text);
+});
+test("renders inline markdown with minimal escaping", () => {
+  assert.ok(richMd.includes("**bold words**"));
+  assert.ok(richMd.includes("*emphasis*"));
+  assert.ok(richMd.includes("`code()`"));
+  assert.ok(richMd.includes("[relative link](https://example.com/rel)"));
+  assert.ok(richMd.includes("\\*stars\\*"));
+  assert.ok(richMd.includes("\\[brackets\\]"));
+  assert.ok(richMd.includes("1.5 numbers survive. Plain sentences stay unescaped."));
+});
+test("keeps heading levels four through six", () => {
+  assert.ok(rich.blocks.some((b) => b.type === "heading" && b.level === 4));
+  assert.ok(richMd.includes("#### Fourth level heading"));
+});
+test("renders ordered and nested lists", () => {
+  assert.ok(richMd.includes("3. third ordered item"));
+  assert.ok(richMd.includes("4. fourth ordered item"));
+  assert.ok(richMd.includes("\n    - nested unordered child item"));
+});
+test("emits the page title once", () =>
+  assert.strictEqual(richMd.match(/# Rich Markdown Page/g).length, 1));
+test("renders fenced code with language and line breaks", () => {
+  const code = rich.blocks.find((b) => b.type === "code");
+  assert.strictEqual(code.language, "js");
+  assert.ok(richMd.includes("```js\nfunction x() {\n  return 1;\n}\n```"));
+});
+test("toHTML nests lists instead of wrapping each item", () => {
+  const html = Mantis.toHTML(rich);
+  assert.ok(html.includes("<ol><li>"));
+  assert.ok(html.includes("<ul><li>nested"));
+  assert.ok(!html.includes("</ul><ul>"));
+});
+
+/* ---------- toMarkdown options: frontmatter, budget, images, tables ---------- */
+test("toMarkdown can emit yaml frontmatter for agents", () => {
+  const fm = Mantis.toMarkdown(s, { frontmatter: true });
+  assert.ok(fm.startsWith("---\n"));
+  assert.ok(fm.includes('title: "Structured Story"'));
+  assert.ok(fm.includes('url: "https://example.com/structured"'));
+  assert.ok(fm.includes("confidence: " + s.confidence));
+  assert.ok(fm.includes('contentHash: "' + s.contentHash + '"'));
+});
+test("toMarkdown maxChars cuts at block boundaries", () => {
+  const small = Mantis.toMarkdown(s, { maxChars: 80 });
+  assert.ok(small.length <= 80);
+  assert.ok(small.includes("# Structured Story"));
+});
+test("toMarkdown can include images and drop tables", () => {
+  const md = Mantis.toMarkdown(s, { images: "alt", tables: false });
+  assert.ok(md.includes("![Chart alt text](https://example.com/chart.png)"));
+  assert.ok(!md.includes("| Quarter |"));
+});
+test("toMarkdown still renders stored articles without runs", () => {
+  const md = Mantis.toMarkdown({
+    title: "Old",
+    blocks: [{ type: "paragraph", text: "Read the spec today", links: [{ text: "spec", href: "https://example.com/spec(v2)" }] }]
+  });
+  assert.ok(md.includes("[spec](https://example.com/spec%28v2%29)"));
+});
+
+/* ---------- fromHTML(): server-side entry with injected DOMParser ---------- */
+test("fromHTML extracts from an HTML string with an injected DOMParser", () => {
+  const { DOMParser } = new JSDOM("").window;
+  const article = Mantis.fromHTML(`<html><head><title>Server Page</title></head><body><article>
+    <h1>Server Page</h1>
+    <p>Server side paragraph one is long enough to be captured by the extractor.</p>
+    <p>Second server paragraph has a <a href="/docs">relative docs link</a> in the body text.</p>
+  </article></body></html>`, { url: "https://example.com/server/page", DOMParser });
+  assert.strictEqual(article.url, "https://example.com/server/page");
+  assert.ok(article.paragraphs.length >= 2);
+  assert.ok(Mantis.toMarkdown(article).includes("[relative docs link](https://example.com/docs)"));
+});
+
 /* ---------- run(): POST happy path, CSP fallback, double-click guard ---------- */
 async function runCase(fetchImpl) {
   const dom = new JSDOM(

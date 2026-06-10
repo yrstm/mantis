@@ -1,7 +1,7 @@
 {
   "name": "mantis",
-  "version": "0.1.0",
-  "description": "Extract readable content from the current browser DOM.",
+  "version": "0.2.0",
+  "description": "Capture exactly what the user sees and turn any page into structured JSON or clean Markdown - for read-later and bookmarking apps, and as a token-efficient input for AI agents. Readability-style, zero dependencies, single file.",
   "main": "mantis.js",
   "types": "mantis.d.ts",
   "files": [
@@ -21,6 +21,7 @@
     "benchmark": "node benchmark.js",
     "demo": "node demo/server.js",
     "pack:check": "npm pack --dry-run",
+    "perf": "node perf.js",
     "test": "node test.js",
     "types:check": "tsc --noEmit --strict --lib dom,es2020 --module commonjs types-smoke.ts"
   },
@@ -31,7 +32,11 @@
     "read-later",
     "archive",
     "client-side",
-    "content-script"
+    "content-script",
+    "markdown",
+    "html-to-markdown",
+    "llm",
+    "ai-agents"
   ],
   "repository": {
     "type": "git",

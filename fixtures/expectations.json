@@ -5,6 +5,7 @@
     "expected": ["Alpha article paragraph", "Bravo article paragraph", "Charlie quoted passage"],
     "forbidden": ["Header navigation", "Related link farm", "Footer legal text"],
     "metadata": { "title": "The Useful Essay", "byline": "A. Writer", "hero": "https://example.com/hero.jpg" },
+    "markdown": ["# The Useful Essay", "> Charlie quoted passage"],
     "diagnostics": { "minConfidence": 0.7, "scopeTag": "ARTICLE" }
   },
   {
@@ -54,6 +55,7 @@
     "expected": ["Install the Widget", "November docs paragraph", "Configure access", "Oscar docs paragraph", "widget configure"],
     "forbidden": ["Docs navigation", "Docs footer"],
     "metadata": { "title": "Install the Widget" },
+    "markdown": ["## Configure access", "```\nwidget configure --project mantis --mode capture\n```"],
     "diagnostics": { "minConfidence": 0.55, "scopeTag": "MAIN" }
   },
   {
@@ -62,6 +64,7 @@
     "expected": ["Papa recipe introduction", "Quebec recipe paragraph", "Ingredients", "one cup rice", "two cups paneer"],
     "forbidden": ["Jump to recipe"],
     "metadata": { "title": "Paneer Rice Bowl", "byline": "Recipe Author" },
+    "markdown": ["## Ingredients", "- one cup rice with enough item text to be useful\n- two cups paneer with enough item text to be useful"],
     "diagnostics": { "minConfidence": 0.65, "scopeTag": "ARTICLE" }
   },
   {
@@ -86,6 +89,7 @@
     "expected": ["Victor link paragraph", "Whiskey link paragraph", "Yankee link paragraph"],
     "forbidden": [],
     "metadata": { "title": "Link Rich Story" },
+    "markdown": ["[primary source](https://example.com/source)", "[supporting context](https://example.com/context)"],
     "diagnostics": { "minConfidence": 0.65, "scopeTag": "ARTICLE" }
   }
 ]
