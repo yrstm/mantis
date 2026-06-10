@@ -3,6 +3,11 @@ name: Release cleanup
 # Sessions pushing through the git proxy can only update their own branch,
 # so tag creation and branch deletion run here with the Actions token.
 on:
+  # push registers the workflow with the Actions API so it can be dispatched
+  # from branches; push runs themselves skip every step (no inputs).
+  push:
+    paths:
+      - .github/workflows/release-cleanup.yml
   workflow_dispatch:
     inputs:
       tag:
