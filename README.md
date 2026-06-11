@@ -1,31 +1,29 @@
 # mantis
 
-Mantis extracts readable content from the rendered browser DOM. Use it to power save-for-later and
-bookmarking tools, or to convert any page into clean, token-cheap Markdown for LLM agents. Same
-extraction, two outputs.
+Mantis pulls the readable content out of a rendered page. Give it a DOM, get back a structured
+article object, render that as clean Markdown or reader HTML. Built for save-for-later tools,
+bookmarklets, browser extensions, and AI agents that want pages as token-cheap Markdown.
 
-It is a small, dependency-free JavaScript library for bookmarklets, browser extensions, headless
-browser scripts, and client side capture tools.
+One file, zero dependencies, never fetches anything.
 
 ## What it does
 
-- Finds the main readable container in a document.
-- Returns metadata, text, blocks, sections, links, images, tables, confidence, and diagnostics.
+- Finds the main content and skips nav, ads, comments, hidden nodes, and repeated responsive markup.
+- Returns metadata, text, blocks, sections, links, images, tables, a confidence score, and diagnostics.
 - Renders the same article object as Markdown (inline links, emphasis, nested lists, fenced code)
   or reader HTML.
-- Filters navigation, comments, ads, hidden DOM, and repeated responsive content.
-- Runs in the page without fetching the URL again.
+- Works on the page as the browser rendered it — it never refetches the URL.
 
 ## API
 
-Browser:
+In the browser:
 
 ```js
 const article = Mantis.extract(document);
 const markdown = Mantis.toMarkdown(article);
 ```
 
-Node (inject a DOM parser; mantis itself stays dependency-free and never fetches URLs):
+In Node, bring your own DOM parser (mantis itself stays dependency-free):
 
 ```js
 const { JSDOM } = require("jsdom");
@@ -77,8 +75,8 @@ Result shape:
 }
 ```
 
-Blocks carry optional fidelity fields: `runs` (inline text, links, code, bold, italics), `list`
-(`depth`, `ordered`, `index` for nested and ordered lists), and `language` (code fence hint).
+Blocks can also carry `runs` (inline text, links, code, bold, italics), `list` (`depth`,
+`ordered`, `index`), and `language` (code fence hint).
 
 Format helpers:
 
@@ -96,16 +94,16 @@ const markdown = Mantis.toMarkdown(article, {
 const html = Mantis.toHTML(article);
 ```
 
-Markdown output keeps inline links, `code`, **bold**, and *italics*; renders ordered and nested
-lists, H1-H6, and fenced code with the page's language hint; and escapes only characters that
-would change meaning, so prose is not littered with backslashes.
+The Markdown keeps inline links, `code`, **bold**, and *italics*; renders ordered and nested
+lists, H1-H6, and fenced code with the page's language hint. It only escapes characters that
+would change meaning, so prose doesn't come back full of backslashes.
 
 Extract options:
 
 ```js
 const article = Mantis.extract(document, {
-  maxBlocks: 100,
-  minTextLength: 25,
+  maxBlocks: 100,        // cap on extracted blocks (default 150)
+  minTextLength: 25,     // drop blocks shorter than this; 0 keeps everything
   includeLinks: true,
   includeImages: true,
   includeTables: true
@@ -116,21 +114,21 @@ Stable fields: `title`, `byline`, `hero`, `url`, `canonicalUrl`, `text`, `paragr
 `sections`, `citations`, `links`, `images`, `tables`, `status`, `warnings`, `contentType`,
 `contentHash`, and `textHash`.
 
-Diagnostic fields: `confidence` and `diagnostics`. These are useful for debugging and ranking
-captures, but their exact scoring may change between releases.
+`confidence` and `diagnostics` are for debugging and ranking captures; their exact scoring can
+change between releases, so don't build on the numbers themselves.
 
 `Mantis.run(scriptElement)` is an optional bookmarklet helper. It extracts the page, posts the
-result to `{script origin}/api/crates`, shows a small confirmation, and falls back to `/save` if the
-post is blocked.
+result to `{script origin}/api/crates`, shows a small confirmation, and falls back to `/save` if
+the post is blocked.
 
 ## Use with AI agents
 
-Mantis is the embeddable last mile for agents that already control a browser context: it converts
-the DOM the browser actually rendered, after JavaScript and with hidden chrome removed, into
-Markdown that is cheap to put in a context window. It does not fetch URLs and is not a scraping
-framework; pair it with whatever loads the page.
+If your agent already drives a browser, mantis is the last step: it turns the DOM the browser
+actually rendered — after JavaScript, minus the chrome — into Markdown that's cheap to put in a
+context window. It doesn't fetch URLs and it isn't a scraping framework; pair it with whatever
+loads the page.
 
-Playwright or Puppeteer (the page the browser rendered, not the HTML the server sent):
+Playwright or Puppeteer:
 
 ```js
 await page.addScriptTag({ path: require.resolve("mantis") });
@@ -139,7 +137,7 @@ const markdown = await page.evaluate(() =>
 );
 ```
 
-Static HTML you already have (server side, via jsdom or linkedom):
+HTML you already have (server side, via jsdom or linkedom):
 
 ```js
 const { JSDOM } = require("jsdom");
@@ -148,40 +146,36 @@ const article = Mantis.fromHTML(html, { url, DOMParser: new JSDOM("").window.DOM
 const markdown = Mantis.toMarkdown(article, { frontmatter: true });
 ```
 
-What the agent gets beyond plain Markdown:
+Beyond plain Markdown:
 
 - `frontmatter: true` carries `url`, `confidence`, `contentHash`, and `warnings`, so an agent can
   branch on `low_confidence` or `ambiguous_scope`, dedupe captures by hash, and cite the source.
-- The article object keeps `citations` with CSS selectors and text offsets, so every claim can be
-  traced back to an exact DOM location. Markdown-only converters cannot do that.
-- `maxChars` enforces a budget at block boundaries instead of mid-sentence. Budgets are in
-  characters, roughly 4 per token, because mantis stays tokenizer-free on purpose. With
-  `budget: "outline"` a page that does not fit keeps every heading and each section's lead block
-  before any further prose, instead of losing its tail.
+- `citations` keeps CSS selectors and text offsets, so a claim can be traced back to the exact
+  DOM node it came from.
+- `maxChars` cuts at block boundaries, never mid-sentence. Budgets are in characters (roughly 4
+  per token) because mantis stays tokenizer-free. With `budget: "outline"`, a page that doesn't
+  fit keeps every heading and each section's lead block instead of losing its tail.
 
 ## Demo
-
-The fastest way to see what mantis does to a page you are actually reading:
 
 ```
 npm run demo
 ```
 
-Open `http://127.0.0.1:8787` and drag the **Markdown this page** bookmarklet to your bookmarks
-bar. Click it on any page in the same browser: mantis runs inside that page — the DOM you see,
-not the HTML the server sent — and an overlay shows the Markdown it produced, with a copy
-button and live toggles for frontmatter and the outline budget. Select text first to convert
-just the selection. When confidence is low, a **raw** toggle keeps the short blocks the default
-pass filters out — also handy for debugging extraction. The demo server only serves your
-working copy of `mantis.js` (uncached, so edits show up on the next click); the capture never
-leaves the page.
+Open `http://127.0.0.1:8787` and drag **Markdown this page** to your bookmarks bar. Click it on
+anything you're reading: an overlay shows the Markdown, with a copy button and toggles for
+frontmatter and the outline budget. Select some text first if you only want that part. The
+**raw** toggle keeps the short blocks extraction normally drops — useful when the confidence
+number looks off and you want to see what got filtered.
 
-If clicking does nothing, the bookmarklet alerts with why: the demo server isn't running, or
-the site's Content-Security-Policy blocks injected scripts (Safari additionally blocks `https`
-pages from loading off localhost — Chrome and Firefox exempt `127.0.0.1`). For those pages use
-the paste fallback on the demo page: a one-line devtools snippet copies the URL and rendered
-HTML as one blob, and the paste box converts it — same engine, via `fromHTML`, entirely in
-your browser.
+The server only serves your local `mantis.js`, uncached — edit the file, click again, see the
+change. Nothing is uploaded anywhere.
+
+If clicking does nothing, an alert tells you why: the demo server isn't running, or the site's
+CSP blocks injected scripts. (Safari also refuses to load from localhost on `https` pages;
+Chrome and Firefox allow `127.0.0.1`.) For those pages, use the paste box on the demo page —
+a one-line devtools snippet copies the page's URL and HTML, paste it in and convert. Same
+engine, just through `fromHTML`.
 
 ## Bookmarklet
 
@@ -204,10 +198,11 @@ npm run benchmark
 npm run perf
 ```
 
-The benchmark uses fixed HTML snapshots in `fixtures/` and should stay green when extraction
-behavior changes. `perf.js` is the render-path harness: a fixed corpus, a fixed metric
-(microseconds per `toMarkdown` pass), and a fidelity gate. Renderer changes are kept only when
-the gate stays green and the metric does not regress.
+The benchmark runs against fixed HTML snapshots in `fixtures/` and should stay green when
+extraction changes. `perf.js` times the render path (microseconds per `toMarkdown` pass) over a
+fixed corpus with a fidelity gate; renderer changes only land if the gate stays green and the
+number doesn't regress. `npm run test:browser` runs the demo in real Chromium — CI does this on
+every push, or install Playwright locally first (see `demo/browser-test.js`).
 
 ## License
 
