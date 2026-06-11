@@ -17,7 +17,7 @@ contentHash, and warnings so agents can branch on extraction quality and dedupe.
 - [Tests](https://github.com/yrstm/mantis/blob/main/test.js): Contract coverage for extraction, structured output, Markdown, HTML, and bookmarklet behavior.
 - [Benchmarks](https://github.com/yrstm/mantis/blob/main/benchmark.js): Fixed fixture evaluation for extraction and Markdown quality.
 - [Perf](https://github.com/yrstm/mantis/blob/main/perf.js): Fixed-metric render-path harness for toMarkdown.
-- [Demo](https://github.com/yrstm/mantis/blob/main/demo/server.js): Local bookmarklet receiver for trying Mantis in a browser.
+- [Demo](https://github.com/yrstm/mantis/blob/main/demo/server.js): Local demo — a bookmarklet that converts the page you are reading to Markdown in an overlay.
 
 ## Package
 

@@ -34,7 +34,7 @@ jobs:
       SHA: ${{ inputs.sha }}
       DELETE_BRANCHES: ${{ inputs.delete_branches }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Create tag
