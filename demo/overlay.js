@@ -90,8 +90,7 @@
     function render() {
       let source = article;
       if (el("#raw").checked) {
-        // 1, not 0: extract() treats 0 as "use the default floor"
-        rawArticle = rawArticle || window.Mantis.extract(document, { minTextLength: 1 });
+        rawArticle = rawArticle || window.Mantis.extract(document, { minTextLength: 0 });
         source = rawArticle;
       }
       if (selectionText && el("#sel").checked) source = selectionArticle(source);

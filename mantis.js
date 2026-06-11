@@ -98,7 +98,7 @@
     options = options || {};
     return {
       maxBlocks: options.maxBlocks || 150,
-      minTextLength: options.minTextLength || 25,
+      minTextLength: typeof options.minTextLength === "number" ? options.minTextLength : 25,
       includeLinks: options.includeLinks !== false,
       includeImages: options.includeImages !== false,
       includeTables: options.includeTables !== false

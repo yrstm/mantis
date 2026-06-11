@@ -62,6 +62,17 @@ const SPARSE = new JSDOM(
 test("sparse page still yields its paragraph", () =>
   assert.ok(Mantis.extract(SPARSE).paragraphs.length === 1));
 
+/* ---------- extract(): explicit minTextLength 0 keeps short blocks ---------- */
+const SHORTY = new JSDOM(
+  "<html><head><title>t</title></head><body><article><p>" +
+  "a long opening paragraph that clears the default floor without any trouble at all ".repeat(2) +
+  "</p><p>tiny.</p></article></body></html>"
+).window.document;
+test("minTextLength 0 is honored, not treated as unset", () => {
+  assert.ok(!Mantis.extract(SHORTY).text.includes("tiny."));
+  assert.ok(Mantis.extract(SHORTY, { minTextLength: 0 }).text.includes("tiny."));
+});
+
 const HIDDEN = new JSDOM(`<!doctype html><html><head>
 <title>t</title><meta name="byl" content="B. Reporter"><meta name="twitter:image" content="https://site.com/tw.jpg">
 </head><body>
