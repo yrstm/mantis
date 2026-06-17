@@ -19,6 +19,7 @@
   },
   "scripts": {
     "benchmark": "node benchmark.js",
+    "eval": "node eval/harness.js",
     "demo": "node demo/server.js",
     "pack:check": "npm pack --dry-run",
     "perf": "node perf.js",
@@ -44,6 +45,8 @@
     "url": "https://github.com/yrstm/mantis.git"
   },
   "devDependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "defuddle": "^0.19.0",
     "jsdom": "^25.0.0",
     "typescript": "^5.9.3"
   }

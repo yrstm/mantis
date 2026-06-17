@@ -1,0 +1,83 @@
+{
+  "note": "Deterministic, offline eval corpus. Each entry pairs a saved rendered-DOM snapshot with hand-authored ground truth: `truth` is the full main-content text that SHOULD survive extraction (used for word-level precision/recall/F1), `forbidden` is noise that must NOT appear. `type` buckets the page so the harness can break scores out per page type. Snapshots currently reuse the test fixtures; grow this with real wild-web captures (see eval/README.md). Page types with no coverage yet are listed in `gaps`.",
+  "gaps": ["product", "spa", "amp", "paywall"],
+  "entries": [
+    {
+      "name": "chrome-heavy article",
+      "file": "chrome-heavy.html",
+      "type": "article",
+      "truth": "The Useful Essay. Alpha article paragraph is central to the story and contains enough prose to be scored as article content. Bravo article paragraph continues the argument with additional detail that should be extracted. Charlie quoted passage belongs to the article and should be retained with the main text.",
+      "forbidden": ["Header navigation", "Related link farm", "Footer legal text"]
+    },
+    {
+      "name": "docs page",
+      "file": "docs-page.html",
+      "type": "docs",
+      "truth": "Install the Widget. November docs paragraph explains the setup process and belongs in the extracted content. Configure access. Oscar docs paragraph describes configuration tradeoffs and belongs in the extracted content. widget configure --project mantis --mode capture",
+      "forbidden": ["Docs navigation", "Docs footer"]
+    },
+    {
+      "name": "recipe page",
+      "file": "recipe-page.html",
+      "type": "recipe",
+      "truth": "Paneer Rice Bowl. Papa recipe introduction explains why the dish works and should be retained. Quebec recipe paragraph covers substitutions and timing and should be retained. Ingredients. one cup rice with enough item text to be useful. two cups paneer with enough item text to be useful.",
+      "forbidden": ["Jump to recipe"]
+    },
+    {
+      "name": "forum answer",
+      "file": "forum-noise.html",
+      "type": "forum",
+      "truth": "Forum Thread. Romeo forum answer contains the substantive explanation and should be extracted. Sierra forum answer continues with practical detail and should be extracted.",
+      "forbidden": ["Forum toolbar", "Thanks reply"]
+    },
+    {
+      "name": "medium-like article",
+      "file": "medium-like.html",
+      "type": "blog",
+      "truth": "Medium Layout Story. Juliet medium paragraph carries the first core idea and should be extracted. Kilo medium paragraph carries the second core idea and should be extracted.",
+      "forbidden": ["Member-only prompt", "Recommended story"]
+    },
+    {
+      "name": "substack-like newsletter",
+      "file": "substack-like.html",
+      "type": "newsletter",
+      "truth": "A Letter From the Future. Hotel newsletter paragraph opens the essay with content that should be captured. India newsletter paragraph expands the argument and should remain in the result.",
+      "forbidden": ["Subscribe now", "Reader comment"]
+    },
+    {
+      "name": "semantic metadata article",
+      "file": "semantic-metadata.html",
+      "type": "article",
+      "truth": "Semantic Headline. Foxtrot article paragraph survives surrounding tools and remains part of the main content. Golf article paragraph survives surrounding tools and provides another extraction signal.",
+      "forbidden": ["Menu prose", "Share this semantic fixture"]
+    },
+    {
+      "name": "responsive duplicate article",
+      "file": "responsive-duplicate.html",
+      "type": "article",
+      "truth": "Responsive Duplicate. Lima responsive paragraph should appear only once after duplicate body content is normalized. Mike responsive paragraph should appear only once after duplicate body content is normalized.",
+      "forbidden": []
+    },
+    {
+      "name": "hidden template article",
+      "file": "hidden-template.html",
+      "type": "article",
+      "truth": "Visible Article. Delta visible paragraph should be captured because it is part of the rendered article. Echo visible paragraph should also be captured because it continues the rendered article.",
+      "forbidden": ["Hidden stale paragraph", "Hidden archive paragraph", "Hidden duplicate paragraph", "Screen-reader utility text"]
+    },
+    {
+      "name": "title cleanup article",
+      "file": "title-cleanup.html",
+      "type": "article",
+      "truth": "Tango title cleanup paragraph anchors the page content and should be extracted. Uniform title cleanup paragraph gives the extractor another content signal.",
+      "forbidden": []
+    },
+    {
+      "name": "link rich article",
+      "file": "link-rich.html",
+      "type": "article",
+      "truth": "Link Rich Story. Victor link paragraph cites a primary source while remaining readable article text. Whiskey link paragraph points to supporting context without becoming navigation. Yankee link paragraph keeps the article above the short content threshold.",
+      "forbidden": []
+    }
+  ]
+}
