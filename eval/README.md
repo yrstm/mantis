@@ -7,6 +7,8 @@ measured rather than asserted. It fetches nothing and depends only on `jsdom`.
 ```
 npm run eval            # scorecard
 npm run eval -- --json  # machine-readable dump
+npm run eval:calibrate  # refit pOk weights from the corpus (needs failure cases)
+npm run eval:capture    # capture real rendered-DOM snapshots (needs Playwright + egress)
 ```
 
 ## What it measures
@@ -19,10 +21,12 @@ For each page in the corpus, for Mantis and every installed baseline:
   tuned extractors fall off. This is the headline number.
 - **Noise rejection** — the fraction of each page's `forbidden` phrases the
   extractor correctly kept out.
-- **Confidence calibration** (Mantis only) — Expected Calibration Error (ECE),
-  Brier score, and a reliability table comparing predicted `confidence` against
+- **`pOk` calibration** (Mantis only) — Expected Calibration Error (ECE),
+  Brier score, and a reliability table comparing the predicted `pOk` against
   observed accuracy (a page counts as "ok" when its F1 ≥ 0.8). A well-calibrated
-  0.8 should be right ~80% of the time.
+  0.8 should be right ~80% of the time. **Caveat:** on the current all-positive
+  corpus a low ECE just means "pOk is high and every page is ok" — it is not yet
+  evidence of calibration. That needs a corpus with failures.
 - **Latency** — median wall-clock per page over repeated runs.
 
 ## Baselines

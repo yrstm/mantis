@@ -83,7 +83,7 @@ Format helpers:
 ```js
 const markdown = Mantis.toMarkdown(article, {
   frontmatter: true,          // YAML header: title, byline, url, published, captured,
-                              // contentType, confidence, contentHash, warnings
+                              // contentType, confidence, pOk, contentHash, warnings
   images: "alt",              // "omit" (default) | "alt" (![alt](src)) | "links" ([alt](src))
   tables: true,               // GFM tables (default true)
   maxChars: 8000,             // budget in characters (~4 chars per token); never cuts mid-block
@@ -116,6 +116,11 @@ Stable fields: `title`, `byline`, `hero`, `url`, `canonicalUrl`, `text`, `paragr
 
 `confidence` and `diagnostics` are for debugging and ranking captures; their exact scoring can
 change between releases, so don't build on the numbers themselves.
+
+`pOk` (0–1) is a separate, monotonic estimate that the extraction is acceptable, meant for agents
+that want to branch on quality — unlike `confidence` it does not collapse on sparse-prose pages.
+It currently ships hand-set weights; the calibration tooling lives in `eval/` and is refit against
+a labeled corpus.
 
 `Mantis.run(scriptElement)` is an optional bookmarklet helper. It extracts the page, posts the
 result to `{script origin}/api/crates`, shows a small confirmation, and falls back to `/save` if

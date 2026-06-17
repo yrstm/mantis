@@ -597,6 +597,33 @@
     return Math.round(Math.max(0, Math.min(0.99, c)) * 100) / 100;
   }
 
+  // pOk: a monotonic estimate that the extraction is acceptable, meant for
+  // agents that want to branch on quality. Unlike `confidence` it does not
+  // collapse on sparse-prose pages — a clean product page with few paragraphs
+  // still scores high because dominance, retained text, and a title are all
+  // present. It is a logistic over interpretable signals from the bus; the
+  // weights are a PRE-CALIBRATION heuristic. Refit them against a labeled
+  // corpus (one that contains real failures) with eval/calibrate.js — the
+  // synthetic corpus has no negatives, so a true fit is not possible yet.
+  var POK_WEIGHTS = { bias: -2.0, dominance: 2.2, textRetained: 1.3, paragraphs: 1.0, hasTitle: 0.8, prose: 1.2 };
+
+  function qualityFeatures(diag, hasTitle) {
+    return {
+      dominance: diag.dominance || 0,
+      textRetained: diag.textRetained || 0,
+      paragraphs: Math.min((diag.paragraphCount || 0) / 5, 1),
+      hasTitle: hasTitle ? 1 : 0,
+      prose: 1 - Math.min(diag.linkDensity || 0, 1)
+    };
+  }
+
+  function probabilityOk(features) {
+    var w = POK_WEIGHTS;
+    var z = w.bias + w.dominance * features.dominance + w.textRetained * features.textRetained +
+      w.paragraphs * features.paragraphs + w.hasTitle * features.hasTitle + w.prose * features.prose;
+    return Math.round(1 / (1 + Math.exp(-z)) * 100) / 100;
+  }
+
   function warnings(article, scopeInfo) {
     var out = [];
     if (!article.blocks.length) out.push("empty_content");
@@ -694,6 +721,7 @@
         paragraphCount: paragraphs.length
       }
     };
+    article.pOk = blocks.length ? probabilityOk(qualityFeatures(article.diagnostics, !!article.title)) : 0;
     article.textHash = hashString(article.text);
     article.contentHash = hashString(JSON.stringify({
       title: article.title,
@@ -810,6 +838,7 @@
       if (pairs[i][1]) out.push(pairs[i][0] + ": " + yamlEscape(pairs[i][1]));
     }
     if (typeof article.confidence === "number") out.push("confidence: " + article.confidence);
+    if (typeof article.pOk === "number") out.push("pOk: " + article.pOk);
     if (article.warnings && article.warnings.length) out.push("warnings: [" + article.warnings.join(", ") + "]");
     out.push("---");
     return out.join("\n");

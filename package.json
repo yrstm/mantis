@@ -21,6 +21,7 @@
     "benchmark": "node benchmark.js",
     "eval": "node eval/harness.js",
     "eval:capture": "node eval/capture.js",
+    "eval:calibrate": "node eval/calibrate.js",
     "demo": "node demo/server.js",
     "pack:check": "npm pack --dry-run",
     "perf": "node perf.js",

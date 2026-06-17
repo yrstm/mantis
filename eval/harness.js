@@ -129,7 +129,7 @@ const mantisExtractor = {
   run(html) {
     const doc = freshDoc(html);
     const article = Mantis.extract(doc);
-    return { text: article.text, confidence: article.confidence };
+    return { text: article.text, confidence: article.confidence, pOk: article.pOk };
   }
 };
 
@@ -217,9 +217,11 @@ function run() {
         latencyMs: median(times)
       };
 
-      if (system === mantisExtractor && typeof result.confidence === "number") {
-        calPoints.push({ conf: result.confidence, ok: score.f1 >= OK_F1 });
+      if (system === mantisExtractor) {
+        // calibrate on pOk (the field meant to be trustworthy); keep confidence for reference
+        if (typeof result.pOk === "number") calPoints.push({ conf: result.pOk, ok: score.f1 >= OK_F1 });
         row.systems[system.name].confidence = result.confidence;
+        row.systems[system.name].pOk = result.pOk;
       }
     }
     perEntry.push(row);
@@ -264,7 +266,7 @@ function printScorecard(report, systems) {
 
   // Mantis detail: precision/recall/noise/latency per page
   console.log("\nMantis per-page detail");
-  console.log("page".padEnd(28) + "type".padEnd(12) + "P".padStart(7) + "R".padStart(7) + "F1".padStart(7) + "noise".padStart(8) + "conf".padStart(7) + "ms".padStart(8));
+  console.log("page".padEnd(28) + "type".padEnd(12) + "P".padStart(7) + "R".padStart(7) + "F1".padStart(7) + "noise".padStart(8) + "conf".padStart(7) + "pOk".padStart(7) + "ms".padStart(8));
   for (const e of report.perEntry) {
     const m = e.systems.Mantis;
     const noise = m.noiseTotal ? `${m.noiseTotal - m.noiseKept}/${m.noiseTotal}` : "-";
@@ -276,6 +278,7 @@ function printScorecard(report, systems) {
       m.f1.toFixed(2).padStart(7) +
       noise.padStart(8) +
       (m.confidence != null ? m.confidence.toFixed(2) : "-").padStart(7) +
+      (m.pOk != null ? m.pOk.toFixed(2) : "-").padStart(7) +
       m.latencyMs.toFixed(3).padStart(8)
     );
   }
@@ -288,7 +291,7 @@ function printScorecard(report, systems) {
   // calibration
   if (report.calibration) {
     const c = report.calibration;
-    console.log(`\nconfidence calibration (ok = F1 >= ${OK_F1})`);
+    console.log(`\npOk calibration (ok = F1 >= ${OK_F1})`);
     console.log(`ECE: ${c.ece.toFixed(3)}   Brier: ${c.brier.toFixed(3)}`);
     console.log("reliability  " + "conf".padStart(8) + "acc".padStart(8) + "n".padStart(5));
     for (const r of c.rows) {

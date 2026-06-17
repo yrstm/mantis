@@ -140,6 +140,13 @@ export interface MantisArticle {
   tables: MantisTable[];
   selection: MantisSelection | null;
   confidence: number;
+  /**
+   * Monotonic estimate (0–1) that the extraction is acceptable, for agents that
+   * want to branch on quality. Unlike `confidence` it does not collapse on
+   * sparse-prose pages. Pre-calibration heuristic — refit with eval/calibrate.js
+   * against a corpus that contains real failures.
+   */
+  pOk: number;
   diagnostics: MantisDiagnostics;
 }
 
