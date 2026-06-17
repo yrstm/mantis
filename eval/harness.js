@@ -31,7 +31,16 @@ const Mantis = require("../mantis.js");
 const quietConsole = new VirtualConsole();
 
 const fixtureDir = path.join(__dirname, "..", "fixtures");
+const snapshotDir = path.join(__dirname, "snapshots");
 const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, "corpus.json"), "utf8"));
+
+// captured real snapshots live in eval/snapshots/; synthetic fixtures in
+// fixtures/. Prefer a captured snapshot when both exist.
+function resolveSnapshot(file) {
+  const captured = path.join(snapshotDir, file);
+  if (fs.existsSync(captured)) return captured;
+  return path.join(fixtureDir, file);
+}
 
 const OK_F1 = 0.8;        // an extraction at/above this F1 is "acceptable" (the label calibration predicts)
 const LATENCY_RUNS = 25;  // repeats per page for a stable median
@@ -181,7 +190,7 @@ function run() {
   const calPoints = [];
 
   for (const entry of corpus.entries) {
-    const html = fs.readFileSync(path.join(fixtureDir, entry.file), "utf8");
+    const html = fs.readFileSync(resolveSnapshot(entry.file), "utf8");
     const row = { name: entry.name, type: entry.type, systems: {} };
 
     for (const system of systems) {

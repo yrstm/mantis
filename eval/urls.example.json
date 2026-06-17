@@ -1,0 +1,8 @@
+[
+  { "url": "https://example.com/some-news-article", "type": "article", "name": "newsroom feature" },
+  { "url": "https://example.com/blog/some-post", "type": "blog", "name": "company blog post" },
+  { "url": "https://docs.example.com/guide/install", "type": "docs", "name": "docs install guide" },
+  { "url": "https://forum.example.com/t/some-thread", "type": "forum", "name": "forum thread" },
+  { "url": "https://shop.example.com/p/some-product", "type": "product", "name": "store product page" },
+  { "url": "https://app.example.com/article/123", "type": "spa", "name": "spa rendered article", "settle": 3000 }
+]

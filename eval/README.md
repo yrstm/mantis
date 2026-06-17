@@ -64,15 +64,37 @@ that *should* survive extraction; `forbidden` is noise that must not.
 ## Growing the corpus (the real Phase 0 work, still open)
 
 Type coverage now spans all ten buckets, but every snapshot is synthetic. The
-remaining work is real captures — currently **blocked in CI/sandbox by the
-network egress allowlist**, so it needs one of:
+remaining work is real rendered-DOM captures. Two things stand between here and
+there:
 
-- an egress allowance for the target domains, then a small capture script
-  (headless browser → save rendered `outerHTML`), or
-- a paste-HTML workflow: drop a real page's rendered HTML into `fixtures/` and
-  add an entry by hand.
+**1. Network egress.** Outbound fetches obey this environment's egress
+allowlist, so by default the capture script can't reach real hosts (you'll see
+"Host not in allowlist"). Add the target domains to the environment's egress
+settings first — see the network-policy docs:
+https://code.claude.com/docs/en/claude-code-on-the-web
 
-For each new page: save the rendered HTML, add an entry with hand-authored
-`truth` + `forbidden` + `type`, and re-run `npm run eval`. Aim for ~50/type,
-then ~150. Until the corpus is real and diverse, "best-in-class" stays a
-hypothesis the instrument is built to test — not a result.
+**2. A browser.** Captures must be *rendered* HTML (post-JS), so `npm run
+eval:capture` drives headless Chromium via Playwright, installed ad hoc (same as
+the browser smoke test):
+
+```
+npm i --no-save playwright
+npx playwright install --with-deps chromium
+```
+
+Then list the pages in `eval/urls.json` (copy `eval/urls.example.json`) and run:
+
+```
+npm run eval:capture            # reads eval/urls.json
+npm run eval:capture -- --url https://site/post --type article --name "a post"
+```
+
+It saves rendered HTML into `eval/snapshots/` and prints corpus-entry stubs.
+Fill each stub's `truth` (main-content text that should survive) and `forbidden`
+(noise that must not), paste into `corpus.json`, and re-run `npm run eval`. The
+harness prefers a captured `eval/snapshots/<file>` over a synthetic
+`fixtures/<file>` of the same name, so real pages can supersede stand-ins.
+
+Aim for ~50/type, then ~150. Until the corpus is real and diverse,
+"best-in-class" stays a hypothesis the instrument is built to test — not a
+result.
