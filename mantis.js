@@ -389,6 +389,33 @@
     return out;
   }
 
+  function hasHeadingText(blocks, text) {
+    for (var i = 0; i < blocks.length; i++) {
+      if (blocks[i].type === "heading" && blocks[i].text === text) return true;
+    }
+    return false;
+  }
+
+  // When the chosen scope is a sub-container that excludes the page's H1 (common
+  // on Medium/Substack-style layouts where the title sits outside the body
+  // section), the article heading goes missing from blocks/text even though the
+  // title field still has it. Recover it as the lead heading so the structured
+  // output and citations are complete. Markdown/HTML renderers already de-dupe a
+  // lead H1 that equals the title, so this never double-prints.
+  function recoverHeading(blocks, doc) {
+    if (!blocks.length) return blocks;
+    var h1 = doc.querySelector("h1");
+    if (!h1 || hidden(h1) || flagged(h1)) return blocks;
+    var text = textOf(h1);
+    if (!text || text.length > 200 || hasHeadingText(blocks, text)) return blocks;
+    blocks.unshift({
+      object: "block", type: "heading", tag: "H1", level: 1, text: text,
+      links: [], source: { selector: selectorFor(h1), index: 0 }
+    });
+    for (var i = 0; i < blocks.length; i++) blocks[i].source.index = i;
+    return blocks;
+  }
+
   function sectionsFromBlocks(blocks) {
     var sections = [];
     var current = { heading: "", level: 0, blocks: [] };
@@ -524,6 +551,34 @@
     return "unknown";
   }
 
+  // Cheap, scope-independent page-type guess used to route extraction
+  // thresholds (article-tuned defaults collapse on forums/products/docs where
+  // the useful blocks are shorter). It runs before content scoring, off og:type,
+  // the URL, and a few structural probes; weak guesses fall through to defaults.
+  function classifyPage(doc) {
+    var ogType = meta(doc, "og:type").toLowerCase();
+    var url = ((doc.location && doc.location.href) || doc.__mantisBase || "").toLowerCase();
+    function has(sel) { try { return !!doc.querySelector(sel); } catch (e) { return false; } }
+    if (ogType === "product" || has("[itemtype*='Product'], .product, [class*='add-to-cart'], [class*='product-price']")) return "product";
+    if (has("[itemtype*='Recipe'], [class*='recipe']")) return "recipe";
+    if (/\/(forum|thread|discussion|topic|t|questions)\//.test(url) || has("[class*='forum'], [class*='thread'], [class*='post-content'], [id*='comments']")) return "forum";
+    if (/\/docs?\//.test(url) || has("[class*='documentation'], [class*='docs-'], [class*='-docs'], [role='doc']")) return "docs";
+    if (ogType === "newsletter" || /substack|newsletter/.test(url) || has("[class*='subscribe'], [class*='newsletter']")) return "newsletter";
+    if (ogType === "article" || has("article")) return "article";
+    return "unknown";
+  }
+
+  // Per-type block-inclusion tuning. Only minTextLength so far: shorter floors
+  // for page types whose real content comes in short blocks (forum answers,
+  // product specs/blurbs, doc steps). Scope selection is unchanged; this only
+  // affects which blocks inside the chosen scope are kept. Types without an
+  // entry use the defaults.
+  var TYPE_TUNING = {
+    forum: { minTextLength: 18 },
+    product: { minTextLength: 12 },
+    docs: { minTextLength: 18 }
+  };
+
   function cleanTitle(title) {
     title = (title || "").replace(/\s+/g, " ").trim();
     if (!title) return "";
@@ -586,11 +641,19 @@
   }
 
   function extract(doc, options) {
+    var raw = options || {};
     options = defaults(options);
+    // page-type routing: apply per-type thresholds unless the caller set them
+    var routeType = classifyPage(doc);
+    var tuning = TYPE_TUNING[routeType];
+    if (tuning && tuning.minTextLength != null && typeof raw.minTextLength !== "number") {
+      options.minTextLength = tuning.minTextLength;
+    }
     var scopeInfo = findContent(doc);
     var scope = scopeInfo.el;
     var blocks = scope ? blocksFrom(scope, scope, doc, options) : [];
     if (blocks.length < 2 && doc.body) blocks = blocksFrom(doc.body, doc.body, doc, options);
+    recoverHeading(blocks, doc);
     var paragraphs = paragraphsFromBlocks(blocks);
     var sections = sectionsFromBlocks(blocks);
     var citations = citationsFromBlocks(blocks);
@@ -622,9 +685,12 @@
       confidence: confidence(scopeInfo, scope, paragraphs),
       diagnostics: {
         scopeTag: scope ? scope.tagName : "",
+        pageType: routeType,
         linkDensity: scope ? Math.round(linkDensity(scope) * 100) / 100 : 0,
         score: Math.round(scopeInfo.score),
         nextScore: Math.round(scopeInfo.nextScore),
+        dominance: (scopeInfo.score + scopeInfo.nextScore) ? Math.round(scopeInfo.score / (scopeInfo.score + scopeInfo.nextScore + 1) * 100) / 100 : 0,
+        textRetained: (doc.body && scope) ? Math.min(1, Math.round(textOf(scope).length / (textOf(doc.body).length || 1) * 100) / 100) : 0,
         paragraphCount: paragraphs.length
       }
     };

@@ -76,9 +76,15 @@ export interface MantisSelection {
 
 export interface MantisDiagnostics {
   scopeTag: string;
+  /** Routed page-type guess (article, forum, docs, product, recipe, newsletter, video, unknown). */
+  pageType: string;
   linkDensity: number;
   score: number;
   nextScore: number;
+  /** Score share of the winning scope vs. the runner-up: score / (score + nextScore + 1). */
+  dominance: number;
+  /** Fraction of body text inside the chosen scope (0–1). */
+  textRetained: number;
   paragraphCount: number;
 }
 
