@@ -1,6 +1,6 @@
 {
-  "note": "Deterministic, offline eval corpus. Each entry pairs a saved rendered-DOM snapshot with hand-authored ground truth: `truth` is the full main-content text that SHOULD survive extraction (used for word-level precision/recall/F1), `forbidden` is noise that must NOT appear. `type` buckets the page so the harness can break scores out per page type. Snapshots currently reuse the test fixtures; grow this with real wild-web captures (see eval/README.md). Page types with no coverage yet are listed in `gaps`.",
-  "gaps": ["product", "spa", "amp", "paywall"],
+  "note": "Deterministic, offline eval corpus. Each entry pairs a saved rendered-DOM snapshot with hand-authored ground truth: `truth` is the full main-content text that SHOULD survive extraction (used for word-level precision/recall/F1), `forbidden` is noise that must NOT appear. `type` buckets the page so the harness can break scores out per page type. The article/blog/docs/forum/newsletter/recipe entries reuse the test fixtures (synthetic, authored to Mantis's contract); the product/spa/amp/paywall entries are deliberately adversarial fixtures authored to stress known failure modes, NOT to flatter Mantis. None are real wild-web captures yet (see eval/README.md).",
+  "gaps": [],
   "entries": [
     {
       "name": "chrome-heavy article",
@@ -78,6 +78,34 @@
       "type": "article",
       "truth": "Link Rich Story. Victor link paragraph cites a primary source while remaining readable article text. Whiskey link paragraph points to supporting context without becoming navigation. Yankee link paragraph keeps the article above the short content threshold.",
       "forbidden": []
+    },
+    {
+      "name": "product page (adversarial)",
+      "file": "product-page.html",
+      "type": "product",
+      "truth": "AeroPress Go Travel Coffee Press. The AeroPress Go brews smooth, full-bodied coffee without bitterness and packs into its own mug for travel. It makes one to three cups in about a minute and cleans up in seconds. Designed for camping, commuting, and small kitchens, it weighs under half a pound and needs no electricity, only hot water and a paper micro-filter.",
+      "forbidden": ["Customers also bought", "Five stars", "Subscribe to our newsletter", "Returns, shipping, privacy"]
+    },
+    {
+      "name": "spa shell (adversarial)",
+      "file": "spa-shell.html",
+      "type": "spa",
+      "truth": "Why we rewrote our scheduler. Our original scheduler was a single cron process that fanned out jobs to workers, and it served us well until the queue depth crossed a few million tasks a day. The rewrite splits scheduling from execution: a planner decides what should run and when, while a separate fleet of executors pulls work and reports completion back through an idempotent ledger. The hard part was not the code but the migration, because we had to run both systems in parallel and prove the new one matched the old one task for task before cutting over.",
+      "forbidden": ["Loading article content", "Read more from our engineering team"]
+    },
+    {
+      "name": "amp article (adversarial)",
+      "file": "amp-article.html",
+      "type": "amp",
+      "truth": "Coastal towns brace for autumn storms. Residents along the eastern coast spent the weekend stacking sandbags as forecasters warned of the strongest storm system to approach the region in over a decade. Emergency services opened shelters in three counties and urged people in low-lying areas to move to higher ground before the tide peaks on Tuesday evening. Power companies pre-positioned crews inland, saying they expect outages to last several days once winds exceed sixty miles per hour across the exposed headlands.",
+      "forbidden": ["Advertisement placeholder", "Copyright AMP News"]
+    },
+    {
+      "name": "paywall article (adversarial)",
+      "file": "paywall-article.html",
+      "type": "paywall",
+      "truth": "The quiet economics of small ferries. Small passenger ferries rarely turn a profit on fares alone, yet hundreds of them keep running across bays and rivers that bridges never reached. The math only works because the boats are treated as roads: subsidized as public infrastructure rather than judged as standalone businesses with their own balance sheets.",
+      "forbidden": ["Hidden gated paragraph", "Another hidden gated paragraph", "Subscribe to continue reading"]
     }
   ]
 }

@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <title>Why we rewrote our scheduler - Engineering Blog</title>
+  <meta property="og:title" content="Why we rewrote our scheduler">
+  <meta name="author" content="Dana Engineer">
+</head>
+<body>
+  <div id="app">
+    <div class="app-shell">
+      <nav class="app-nav"><a href="/">Home</a><a href="/blog">Blog</a><a href="/careers">Careers</a><a href="/login">Log in</a></nav>
+      <div class="skeleton-loader" aria-hidden="true"><p>Loading article content please wait while the application hydrates the view.</p></div>
+      <main class="route-outlet">
+        <article>
+          <h1>Why we rewrote our scheduler</h1>
+          <p>Our original scheduler was a single cron process that fanned out jobs to workers, and it served us well until the queue depth crossed a few million tasks a day.</p>
+          <p>The rewrite splits scheduling from execution: a planner decides what should run and when, while a separate fleet of executors pulls work and reports completion back through an idempotent ledger.</p>
+          <p>The hard part was not the code but the migration, because we had to run both systems in parallel and prove the new one matched the old one task for task before cutting over.</p>
+        </article>
+      </main>
+      <aside class="promo-rail"><p>Read more from our engineering team and explore open roles on the platform group today.</p></aside>
+    </div>
+  </div>
+  <script type="application/json" id="__NEXT_DATA__">{"props":{"article":{"title":"Why we rewrote our scheduler","body":"Our original scheduler was a single cron process"}}}</script>
+  <script>window.__hydrate && window.__hydrate();</script>
+</body>
+</html>

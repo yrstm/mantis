@@ -172,6 +172,11 @@ function run() {
   const baselines = loadBaselines();
   const systems = [mantisExtractor, ...baselines];
 
+  // Some baselines (Defuddle) log their own swallowed errors straight to
+  // console.error on pages they don't handle; keep that out of the scorecard.
+  const realError = console.error, realWarn = console.warn;
+  console.error = console.warn = function () {};
+
   const perEntry = [];
   const calPoints = [];
 
@@ -210,6 +215,9 @@ function run() {
     }
     perEntry.push(row);
   }
+
+  console.error = realError;
+  console.warn = realWarn;
 
   const cal = calibration(calPoints);
   const report = { systems: systems.map((s) => s.name), perEntry, calibration: cal, gaps: corpus.gaps };

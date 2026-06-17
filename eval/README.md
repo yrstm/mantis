@@ -46,26 +46,33 @@ that *should* survive extraction; `forbidden` is noise that must not.
 
 ## Honest limits (read before trusting the numbers)
 
-- **The corpus is small (11 pages) and synthetic.** The snapshots are reused
-  test fixtures, and they were authored against Mantis's own contract — so the
-  current Mantis-vs-baseline gap is **favorable to Mantis and not yet
-  representative of the wild web.** Treat today's scorecard as proof the
-  *instrument* works, not as a competitive claim.
-- **Calibration needs volume.** ECE/Brier over 11 points are directional only.
-  The harness is wired correctly; the numbers get meaningful as the corpus grows.
-- **Coverage gaps.** No `product`, `spa`, `amp`, or `paywall` pages yet
-  (reported as gaps at the bottom of the scorecard).
+- **The corpus is small (15 pages) and synthetic.** The
+  article/blog/docs/forum/newsletter/recipe entries are reused test fixtures
+  authored against Mantis's own contract; the product/spa/amp/paywall entries
+  are adversarial fixtures authored to stress known failure modes. **None are
+  real wild-web captures.** So the current Mantis-vs-baseline gap is favorable
+  and not yet representative of the wild web — treat today's scorecard as proof
+  the *instrument* works, not as a competitive claim.
+- **The corpus does not yet discriminate at the top end.** Mantis scores F1 1.0
+  on most entries, so the harness can't currently tell "great" from "perfect."
+  Real, messy pages are what will create spread.
+- **Calibration needs volume.** ECE/Brier over 15 points are directional only.
+  That said, the instrument already caught a real defect: the product page
+  scores `confidence` ~0.52 at F1 1.0 (badly under-confident on sparse prose),
+  which is exactly the kind of failure the planned calibrated `pOk` exists to fix.
 
-## Growing the corpus (the real Phase 0 work)
+## Growing the corpus (the real Phase 0 work, still open)
 
-This is the next task and it's deliberately left open:
+Type coverage now spans all ten buckets, but every snapshot is synthetic. The
+remaining work is real captures — currently **blocked in CI/sandbox by the
+network egress allowlist**, so it needs one of:
 
-1. Capture real rendered-DOM snapshots across every page type in `gaps` plus
-   more of the existing types — aim for ~50/type, then ~150.
-2. For each, save the HTML into `fixtures/` (or a future `eval/snapshots/`) and
-   add an entry with hand-authored `truth` + `forbidden`.
-3. Re-run `npm run eval`. The per-type F1 and the calibration curve will start
-   reflecting the wild web rather than the fixtures.
+- an egress allowance for the target domains, then a small capture script
+  (headless browser → save rendered `outerHTML`), or
+- a paste-HTML workflow: drop a real page's rendered HTML into `fixtures/` and
+  add an entry by hand.
 
-Until the corpus is real and diverse, "best-in-class" stays a hypothesis the
-instrument is built to test — not a result.
+For each new page: save the rendered HTML, add an entry with hand-authored
+`truth` + `forbidden` + `type`, and re-run `npm run eval`. Aim for ~50/type,
+then ~150. Until the corpus is real and diverse, "best-in-class" stays a
+hypothesis the instrument is built to test — not a result.
