@@ -89,7 +89,8 @@ const markdown = Mantis.toMarkdown(article, {
   maxChars: 8000,             // budget in characters (~4 chars per token); never cuts mid-block
   budget: "outline"           // "cut" (default): keep the leading run of blocks
                               // "outline": spend the budget on headings and the first
-                              // block of each section before remaining prose
+                              // block of each section before remaining prose;
+                              // has no effect if maxChars is not set
 });
 const html = Mantis.toHTML(article);
 ```
@@ -97,6 +98,12 @@ const html = Mantis.toHTML(article);
 The Markdown keeps inline links, `code`, **bold**, and *italics*; renders ordered and nested
 lists, H1-H6, and fenced code with the page's language hint. It only escapes characters that
 would change meaning, so prose doesn't come back full of backslashes.
+
+Tables in `article.tables` render after all prose blocks in both `toMarkdown` and `toHTML`;
+their in-document position is not preserved.
+
+`toHTML` also renders inline formatting (bold, italic, code, links) using the same `runs` data
+as `toMarkdown`; it wraps output in `<article class="mantis-reader">` with no bundled stylesheet.
 
 Extract options:
 
@@ -110,9 +117,20 @@ const article = Mantis.extract(document, {
 });
 ```
 
+`links` is capped at 200 entries, `images` at 100, and `tables` at 50, independently of
+`maxBlocks`. `selection` is always `null` in Node/`fromHTML` contexts — it only captures a
+live browser text selection.
+
 Stable fields: `title`, `byline`, `hero`, `url`, `canonicalUrl`, `text`, `paragraphs`, `blocks`,
 `sections`, `citations`, `links`, `images`, `tables`, `status`, `warnings`, `contentType`,
 `contentHash`, and `textHash`.
+
+`contentHash` hashes title, byline, canonical URL, body text, and tables — use it to detect
+duplicate captures of the same page across sessions. `textHash` hashes body text only — use it
+to detect content changes when the URL is stable.
+
+`contentType` is inferred from element class names and `og:type`; it returns `"unknown"` when
+those signals are absent, which is common.
 
 `confidence` and `diagnostics` are for debugging and ranking captures; their exact scoring can
 change between releases, so don't build on the numbers themselves.
@@ -120,6 +138,26 @@ change between releases, so don't build on the numbers themselves.
 `Mantis.run(scriptElement)` is an optional bookmarklet helper. It extracts the page, posts the
 result to `{script origin}/api/crates`, shows a small confirmation, and falls back to `/save` if
 the post is blocked.
+
+The POST body sent to `/api/crates` is `Content-Type: application/json` with this shape:
+
+```js
+{
+  type: "web",
+  source: "Web",
+  origin: "example.com",           // hostname without www
+  url: "https://example.com/post", // full window.location.href
+  title: "Article title",
+  byline: "Author — captured from the browser DOM",
+  hero: "https://example.com/image.jpg",
+  captured: true,
+  body: ["selected text", "paragraph 1", "paragraph 2"],  // selection prepended if any
+  article: { /* full MantisArticle object */ }
+}
+```
+
+The `/save` fallback opens a popup with `url`, `title`, and `text` (the current selection) as
+query parameters.
 
 ### Warnings and status
 
