@@ -121,6 +121,27 @@ change between releases, so don't build on the numbers themselves.
 result to `{script origin}/api/crates`, shows a small confirmation, and falls back to `/save` if
 the post is blocked.
 
+### Warnings and status
+
+`article.warnings` is an array of string codes. `article.status` is derived from them.
+
+| Warning | Triggers when | Suggested action |
+|---|---|---|
+| `low_confidence` | Confidence score below 0.45 | Treat as provisional; fall back or flag for review |
+| `ambiguous_scope` | Top two candidate containers score within 20% of each other | Content container was unclear; inspect `diagnostics.scopeTag` |
+| `high_link_density` | Extracted scope is more than 35% anchor text | Page is likely a directory or nav page, not prose |
+| `empty_content` | No blocks were extracted | Page has no readable content or is fully JS-gated |
+| `short_content` | Fewer than two blocks were extracted | Thin page; treat the output as a stub |
+| `no_content_scope` | No container scored above threshold; fell back to `<body>` | No structural target; filter quality will be lower |
+
+`status` derives from warnings:
+- `"empty"` — `empty_content` is set
+- `"partial"` — `low_confidence` or `short_content` is set
+- `"completed"` — neither of the above
+
+`ambiguous_scope`, `high_link_density`, and `no_content_scope` can appear alongside `"completed"`
+if confidence cleared the 0.45 threshold and at least two blocks were extracted.
+
 ## Use with AI agents
 
 If your agent already drives a browser, mantis is the last step: it turns the DOM the browser
@@ -155,6 +176,53 @@ Beyond plain Markdown:
 - `maxChars` cuts at block boundaries, never mid-sentence. Budgets are in characters (roughly 4
   per token) because mantis stays tokenizer-free. With `budget: "outline"`, a page that doesn't
   fit keeps every heading and each section's lead block instead of losing its tail.
+
+See `examples/` for runnable wrappers: a Claude tool, an OpenAI function, and a Playwright
+extraction script.
+
+## Token efficiency
+
+Passing raw page content to an agent is expensive. For a typical 2,000-word blog post:
+
+| Input method | Tokens (approx) | Tool calls | Structured metadata | Citable passages |
+|---|---|---|---|---|
+| Raw HTML source | 30,000–80,000 | 0 | No | No |
+| Browser copy-paste (all visible text) | 5,000–15,000 | 0 | No | No |
+| Mantis Markdown | 800–2,500 | 1 | Yes (frontmatter) | Yes (citations) |
+| Screenshot — one viewport | 1,000–2,000 | 1 | No | No |
+| Screenshot — full page (3–4 captures) | 4,000–8,000 | 3–5 | No | No |
+
+Token counts assume ~4 characters per token. Screenshot figures are per-image vision tokens; on
+top of that the model must OCR the text, filter UI chrome, and reconstruct reading order before it
+can reason about the content. Exact screenshot costs vary by image dimensions and model.
+
+### Screenshots versus Markdown
+
+When an agent processes a screenshot, the model works from pixel data — inferring layout, reading
+text optically, filtering navigation chrome, and reconstructing paragraph order — before it can
+answer a question or cite a passage. A single 1280 × 800 viewport costs roughly 1,000–2,000 vision
+tokens; a full blog post needs three to five captures. The agent cannot cite paragraphs by position,
+and metadata (author, published date, canonical URL) is not visible at all.
+
+Mantis's Markdown path replaces that with a single tool call. The rendered DOM becomes clean
+structured text, with a CSS selector on every block for source tracing, frontmatter carrying URL and
+confidence, and a budget mode that degrades gracefully when the page exceeds the context window.
+
+### Screenshot-to-Markdown (planned)
+
+A natural extension is the reverse: for screenshots you already have — a phone photo of a document,
+a PDF export, or a screen-recording frame — Mantis could accept image data alongside a
+caller-supplied vision function and return the same article object as the rest of the API:
+
+```js
+// Proposed API — not yet implemented
+const article = await Mantis.fromImage(imageData, visionFn, { url });
+const markdown = Mantis.toMarkdown(article, { frontmatter: true });
+```
+
+The vision function stays in the caller's stack (keeping Mantis dependency-free); Mantis handles
+structure, budget, and formatting. Whatever form a page arrives in — live DOM, stored HTML, or a
+screenshot — agents get the same clean Markdown output.
 
 ## Demo
 
