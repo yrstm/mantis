@@ -311,6 +311,18 @@ number looks off and you want to see what got filtered.
 The server only serves your local `mantis.js`, uncached — edit the file, click again, see the
 change. Nothing is uploaded anywhere.
 
+**Port conflict?** 8787 is the default (same as Cloudflare's `wrangler dev`). If something else
+is already using it, pass a different port:
+
+```
+PORT=3000 npm run demo
+# or
+node demo/server.js 3000
+```
+
+Then open `http://127.0.0.1:3000` instead. The bookmarklet on that page will point to the
+correct port automatically.
+
 If clicking does nothing, an alert tells you why: the demo server isn't running, or the site's
 CSP blocks injected scripts. (Safari also refuses to load from localhost on `https` pages;
 Chrome and Firefox allow `127.0.0.1`.) For those pages, use the paste box on the demo page —
