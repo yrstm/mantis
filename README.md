@@ -6,13 +6,22 @@ bookmarklets, browser extensions, and AI agents that want pages as token-cheap M
 
 One file, zero dependencies, never fetches anything.
 
-## What it does
+## Features
 
-- Finds the main content and skips nav, ads, comments, hidden nodes, and repeated responsive markup.
-- Returns metadata, text, blocks, sections, links, images, tables, a confidence score, and diagnostics.
-- Renders the same article object as Markdown (inline links, emphasis, nested lists, fenced code)
-  or reader HTML.
-- Works on the page as the browser rendered it — it never refetches the URL.
+| Feature | Description |
+|---|---|
+| Content extraction | Scores containers by prose density and semantic signals; removes nav, sidebar, footer, ads, comments, hidden nodes, and repeated responsive markup |
+| Metadata | Resolves title, byline, hero image, site name, canonical URL, published/modified dates, and language from meta tags with defined fallback chains |
+| Typed blocks | Returns paragraphs, headings, blockquotes, code blocks, and list items — each with inline runs (bold, italic, code, links) and a CSS selector to the source node |
+| Sections & citations | Groups blocks under headings; attaches a text offset to every block for precise claim tracing |
+| Markdown rendering | Inline links, bold, italic, code, nested lists, fenced code, GFM tables, and optional YAML frontmatter |
+| Reader HTML | `<article class="mantis-reader">` with inline formatting and nested lists; no bundled stylesheet |
+| Token budget | Cuts at block boundaries; `"outline"` mode keeps headings and section leads before prose when over budget |
+| Confidence & warnings | 0–1 confidence score; six warning codes covering low confidence, thin content, ambiguous scope, high link density, and no scope found |
+| Content hashing | `contentHash` for cross-session dedup; `textHash` for content-change detection on the same URL |
+| Selection capture | Captures the user's active text selection in browser contexts |
+| Bookmarklet / `run()` | Extracts and POSTs to your backend; in-page confirmation; CSP-safe popup fallback |
+| Node / server-side | `fromHTML(html, { DOMParser })` with jsdom or linkedom; zero network requests |
 
 ## API
 
@@ -39,12 +48,19 @@ Result shape:
 
 ```js
 {
+  object: "article",
   title: "Example title",
   byline: "Example author",
+  siteName: "Example Site",
   hero: "https://example.com/image.jpg",
-  object: "article",
-  status: "completed",
-  contentType: "article",
+  url: "https://example.com/post",
+  canonicalUrl: "https://example.com/post",   // from <link rel="canonical">; falls back to url
+  language: "en",
+  publishedAt: "2026-01-15T00:00:00Z",
+  modifiedAt: "",
+  status: "completed",                         // "completed" | "partial" | "empty"
+  contentType: "article",                      // "article" | "docs" | "recipe" | "forum" |
+                                               // "newsletter" | "product" | "video" | "unknown"
   capturedAt: "2026-06-10T12:00:00.000Z",
   contentHash: "f3a2c91b",
   textHash: "91b3f2a0",
@@ -53,30 +69,47 @@ Result shape:
   paragraphs: ["First paragraph", "Second paragraph"],
   blocks: [
     {
-      type: "paragraph",
+      object: "block",
+      type: "paragraph",            // "paragraph" | "heading" | "blockquote" | "code" | "list_item"
+      tag: "P",
+      level: 0,                     // heading level 1–6 for headings; 0 otherwise
       text: "First paragraph",
-      runs: [{ type: "text", text: "First " }, { type: "strong", text: "paragraph" }],
-      source: { selector: "body > article:nth-of-type(1) > p:nth-of-type(1)", index: 0 }
+      links: [{ text: "link text", href: "https://example.com" }],
+      runs: [
+        { type: "text", text: "First " },
+        { type: "strong", text: "paragraph" }
+      ],                            // run types: "text" | "strong" | "em" | "code" | "link"
+                                    // "link" runs also carry href
+      source: { selector: "article > p:nth-of-type(1)", index: 0 }
+      // list_item blocks also carry: list: { depth, ordered, index }
+      // code blocks also carry:      language: "js"
     }
   ],
-  sections: [{ heading: "", level: 0, blocks: [] }],
-  citations: [{ text: "First paragraph", selector: "body > article:nth-of-type(1) > p:nth-of-type(1)", hrefs: [], offset: 0 }],
-  links: [{ text: "Source", href: "https://example.com/source", rel: "", source: {} }],
-  images: [{ src: "https://example.com/image.jpg", alt: "", title: "", source: {} }],
-  tables: [{ caption: "", headers: ["Name", "Value"], rows: [["A", "1"]], source: {} }],
+  sections:  [{ object: "section",  heading: "", level: 0, blocks: [] }],
+  citations: [{ object: "citation", text: "First paragraph", selector: "article > p:nth-of-type(1)", hrefs: [], offset: 0 }],
+  links:     [{ object: "link",     text: "Source", href: "https://example.com/source", rel: "", source: {} }],
+  images:    [{ object: "image",    src: "https://example.com/image.jpg", alt: "", title: "", source: {} }],
+  tables:    [{ object: "table",    caption: "", headers: ["Name", "Value"], rows: [["A", "1"]], source: {} }],
+  selection: null,                  // { object: "selection", text, note, createdAt, source } when set
   confidence: 0.82,
-  diagnostics: {
-    scopeTag: "ARTICLE",
-    linkDensity: 0.04,
-    score: 1200,
-    nextScore: 340,
-    paragraphCount: 2
-  }
+  diagnostics: { scopeTag: "ARTICLE", linkDensity: 0.04, score: 1200, nextScore: 340, paragraphCount: 2 }
 }
 ```
 
-Blocks can also carry `runs` (inline text, links, code, bold, italics), `list` (`depth`,
-`ordered`, `index`), and `language` (code fence hint).
+**Metadata sources** (first match wins):
+
+| Field | Sources |
+|---|---|
+| `title` | `og:title` → `twitter:title` → first `<h1>` → `document.title` (strips ` \| Site Name` suffixes) |
+| `byline` | `author` → `article:author` → `byl` → `parsely-author` |
+| `hero` | `og:image` → `twitter:image` → `twitter:image:src` |
+| `canonicalUrl` | `<link rel="canonical">`; falls back to `url` |
+| `siteName` | `og:site_name` |
+| `language` | `<html lang>` → `meta[name=language]` |
+| `publishedAt` | `article:published_time` → `date` |
+| `modifiedAt` | `article:modified_time` → `lastmod` |
+
+Images fall back to `data-src` when `src` is absent (lazy-load pattern).
 
 Format helpers:
 
@@ -121,9 +154,10 @@ const article = Mantis.extract(document, {
 `maxBlocks`. `selection` is always `null` in Node/`fromHTML` contexts — it only captures a
 live browser text selection.
 
-Stable fields: `title`, `byline`, `hero`, `url`, `canonicalUrl`, `text`, `paragraphs`, `blocks`,
-`sections`, `citations`, `links`, `images`, `tables`, `status`, `warnings`, `contentType`,
-`contentHash`, and `textHash`.
+Stable fields: `title`, `byline`, `siteName`, `hero`, `url`, `canonicalUrl`, `language`,
+`publishedAt`, `modifiedAt`, `text`, `paragraphs`, `blocks`, `sections`, `citations`, `links`,
+`images`, `tables`, `selection`, `status`, `warnings`, `contentType`, `contentHash`, and
+`textHash`.
 
 `contentHash` hashes title, byline, canonical URL, body text, and tables — use it to detect
 duplicate captures of the same page across sessions. `textHash` hashes body text only — use it
@@ -137,7 +171,7 @@ change between releases, so don't build on the numbers themselves.
 
 `Mantis.run(scriptElement)` is an optional bookmarklet helper. It extracts the page, posts the
 result to `{script origin}/api/crates`, shows a small confirmation, and falls back to `/save` if
-the post is blocked.
+the post is blocked. A 3-second guard prevents double-capture if the script is injected twice.
 
 The POST body sent to `/api/crates` is `Content-Type: application/json` with this shape:
 
