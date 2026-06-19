@@ -1,25 +1,80 @@
 # Mantis
 
 Mantis extracts readable content from the rendered browser DOM and converts it to structured JSON
-or clean Markdown. `Mantis.extract(document)` returns the canonical article object;
-`Mantis.toMarkdown(article, { frontmatter, images, tables, maxChars, budget })` renders
-token-efficient Markdown with inline links, emphasis, nested lists, and fenced code;
-`budget: "outline"` makes an over-budget page degrade like an outline (headings and section leads
-survive first) instead of losing its tail. `Mantis.fromHTML(html, { url, DOMParser })` is the
-server-side entry point (inject jsdom or linkedom). Frontmatter carries url, confidence,
-contentHash, and warnings so agents can branch on extraction quality and dedupe.
+or clean Markdown. Zero dependencies, single file, never fetches anything.
+
+## API
+
+- `Mantis.extract(document, opts?)` — browser-side extraction from the live DOM
+- `Mantis.fromHTML(html, { url, DOMParser })` — server-side (inject jsdom or linkedom)
+- `Mantis.toMarkdown(article, opts?)` — renders the article as token-efficient Markdown
+- `Mantis.toHTML(article)` — renders the article as reader-mode HTML with inline formatting
+- `Mantis.run(scriptEl)` — bookmarklet helper: extracts and POSTs to origin's /api/crates
+
+## Article object (stable fields)
+
+title, byline, siteName, hero, url, canonicalUrl, language, publishedAt, modifiedAt,
+status ("completed" | "partial" | "empty"),
+contentType ("article" | "docs" | "recipe" | "forum" | "newsletter" | "product" | "video" | "unknown"),
+capturedAt, contentHash (semantic dedup across sessions), textHash (content-change detection),
+warnings (string[]), text, paragraphs, blocks, sections, citations, links, images, tables, selection.
+
+Unstable (debug/ranking only): confidence (0–1), diagnostics.
+
+## Block structure
+
+object: "block", type: "paragraph" | "heading" | "blockquote" | "code" | "list_item",
+tag, level (1–6 for headings; 0 otherwise), text, links, source { selector, index }.
+Optional: runs (inline formatting), list { depth, ordered, index }, language (code fence hint).
+
+Run types: "text" | "strong" | "em" | "code" | "link" (link runs also carry href).
+
+All nested collection items carry an object discriminator:
+"block", "section", "citation", "link", "image", "table", "selection".
+
+## Warnings
+
+low_confidence (confidence < 0.45), ambiguous_scope (top two candidates within 20%),
+high_link_density (scope > 35% anchor text), empty_content (no blocks extracted),
+short_content (< 2 blocks), no_content_scope (fell back to <body>).
+
+status "empty" → empty_content set; "partial" → low_confidence or short_content; "completed" → neither.
+
+## toMarkdown options
+
+frontmatter: true — YAML header (title, byline, url, confidence, contentHash, warnings)
+images: "omit" (default) | "alt" | "links"
+tables: true (default)
+maxChars: N — cuts at block boundaries; never mid-sentence (~4 chars per token)
+budget: "cut" (default, keep leading blocks) | "outline" (headings + section leads first); requires maxChars
+
+## extract options
+
+maxBlocks: 150 (default), minTextLength: 25 (default; 0 keeps all),
+includeLinks / includeImages / includeTables (all true by default).
+Hard caps: links 200, images 100, tables 50.
+selection is always null in Node/fromHTML contexts.
+
+## Metadata sources (first match wins)
+
+title:       og:title → twitter:title → first <h1> → document.title (strips " | Site Name" suffixes)
+byline:      author → article:author → byl → parsely-author
+hero:        og:image → twitter:image → twitter:image:src
+canonicalUrl: <link rel="canonical"> → url
+siteName:    og:site_name
+language:    <html lang> → meta[name=language]
+publishedAt: article:published_time → date
+modifiedAt:  article:modified_time → lastmod
+
+Images fall back to data-src when src is absent (lazy-load pattern).
 
 ## Docs
 
-- [README](https://github.com/yrstm/mantis#readme): API overview, AI agent patterns (Playwright, jsdom), bookmarklet helper, and development commands.
-- [Source](https://github.com/yrstm/mantis/blob/main/mantis.js): Runtime library entry point.
-- [Types](https://github.com/yrstm/mantis/blob/main/mantis.d.ts): TypeScript API declarations.
-- [Tests](https://github.com/yrstm/mantis/blob/main/test.js): Contract coverage for extraction, structured output, Markdown, HTML, and bookmarklet behavior.
-- [Benchmarks](https://github.com/yrstm/mantis/blob/main/benchmark.js): Fixed fixture evaluation for extraction and Markdown quality.
-- [Perf](https://github.com/yrstm/mantis/blob/main/perf.js): Fixed-metric render-path harness for toMarkdown.
-- [Demo](https://github.com/yrstm/mantis/blob/main/demo/server.js): Local demo — a bookmarklet that converts the page you are reading to Markdown in an overlay.
+- README: https://github.com/yrstm/mantis#readme
+- Source: https://github.com/yrstm/mantis/blob/main/mantis.js
+- Types: https://github.com/yrstm/mantis/blob/main/mantis.d.ts
+- Examples: https://github.com/yrstm/mantis/tree/main/examples
 
 ## Package
 
-- CommonJS entry: `mantis.js`
-- Runtime dependencies: none
+CommonJS entry: mantis.js | Runtime dependencies: none
