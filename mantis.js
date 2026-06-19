@@ -391,12 +391,12 @@
 
   function sectionsFromBlocks(blocks) {
     var sections = [];
-    var current = { heading: "", level: 0, blocks: [] };
+    var current = { object: "section", heading: "", level: 0, blocks: [] };
     for (var i = 0; i < blocks.length; i++) {
       var block = blocks[i];
       if (block.type === "heading") {
         if (current.heading || current.blocks.length) sections.push(current);
-        current = { heading: block.text, level: block.level, blocks: [] };
+        current = { object: "section", heading: block.text, level: block.level, blocks: [] };
       } else {
         current.blocks.push(block);
       }
@@ -844,6 +844,21 @@
     return out.join("\n\n").trim();
   }
 
+  function inlineHTML(block) {
+    if (!block.runs || !block.runs.length) return escapeHtml(block.text || "");
+    var out = "";
+    for (var i = 0; i < block.runs.length; i++) {
+      var run = block.runs[i];
+      var text = escapeHtml(run.text);
+      if (run.type === "strong") out += "<strong>" + text + "</strong>";
+      else if (run.type === "em") out += "<em>" + text + "</em>";
+      else if (run.type === "code") out += "<code>" + text + "</code>";
+      else if (run.type === "link") out += '<a href="' + escapeHtml(run.href || "") + '">' + text + "</a>";
+      else out += text;
+    }
+    return out;
+  }
+
   function toHTML(article) {
     var out = ['<article class="mantis-reader">'];
     if (article.title) out.push("<h1>" + escapeHtml(article.title) + "</h1>");
@@ -877,15 +892,15 @@
         }
         var top = stack[stack.length - 1];
         if (top.openItem) out.push("</li>");
-        out.push("<li>" + escapeHtml(b.text));
+        out.push("<li>" + inlineHTML(b));
         top.openItem = true;
         continue;
       }
       closeLists(0);
-      if (b.type === "heading") out.push("<h" + b.level + ">" + escapeHtml(b.text) + "</h" + b.level + ">");
-      else if (b.type === "blockquote") out.push("<blockquote>" + escapeHtml(b.text) + "</blockquote>");
+      if (b.type === "heading") out.push("<h" + b.level + ">" + inlineHTML(b) + "</h" + b.level + ">");
+      else if (b.type === "blockquote") out.push("<blockquote>" + inlineHTML(b) + "</blockquote>");
       else if (b.type === "code") out.push("<pre><code" + (b.language ? ' class="language-' + escapeHtml(b.language) + '"' : "") + ">" + escapeHtml(b.text) + "</code></pre>");
-      else out.push("<p>" + escapeHtml(b.text) + "</p>");
+      else out.push("<p>" + inlineHTML(b) + "</p>");
     }
     closeLists(0);
     var tables = article.tables || [];

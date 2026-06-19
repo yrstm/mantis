@@ -53,6 +53,7 @@ export interface MantisBlock {
 }
 
 export interface MantisSection {
+  object: "section";
   heading: string;
   level: number;
   blocks: MantisBlock[];

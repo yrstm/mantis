@@ -1,6 +1,6 @@
 {
   "name": "mantis",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Capture exactly what the user sees and turn any page into structured JSON or clean Markdown. Built for read-later and bookmarking apps, and for AI agents that need token-efficient input. Readability-style, zero dependencies, single file.",
   "main": "mantis.js",
   "types": "mantis.d.ts",
