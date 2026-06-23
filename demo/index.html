@@ -18,34 +18,42 @@
     pre { padding: 8px; overflow: auto; }
     .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
     .muted { color: #555; }
+    .step { font-weight: 600; margin: 20px 0 2px; }
   </style>
 </head>
 <body>
   <h1>Mantis &rarr; Markdown</h1>
+  <p>Converts the readable content of any web page to clean Markdown: articles, docs, newsletters, and reference pages.</p>
   <p>Drag this to your bookmarks bar, then click it on any page you are reading:</p>
   <p><a class="bookmarklet" id="bm" href="#">Markdown this page</a></p>
-  <p class="muted">Mantis runs inside the page — the DOM you see, not the HTML the server sent — and
-     an overlay shows the Markdown with a copy button. Select text first to convert just the
-     selection. Keep <code>npm run demo</code> running; it only serves your working copy of
-     <code>mantis.js</code> (uncached, so edits show up on the next click). Nothing leaves the page.</p>
+  <p class="muted">Mantis runs inside the page (the DOM you see, not the HTML the server sent) and
+     shows the Markdown in an overlay with a copy button. Select text first to convert just the
+     selection. Keep <code>npm run demo</code> running; it serves your working copy of
+     <code>mantis.js</code>, uncached. Nothing leaves the page.</p>
   <p class="muted">If clicking does nothing and no alert appears: Safari blocks
-     <code>https</code> pages from loading scripts off localhost (Chrome and Firefox exempt
-     <code>127.0.0.1</code>). Use the paste fallback below.</p>
+     <code>https</code> pages from loading localhost scripts. Chrome and Firefox allow
+     <code>127.0.0.1</code>. Use the paste fallback below.</p>
 
   <h2>No bookmarklet? Paste the page</h2>
-  <p class="muted">Some sites' Content-Security-Policy blocks injected scripts. Run this in that
-     page's devtools console — it puts the URL and rendered HTML on your clipboard as one blob:</p>
+  <p class="muted">Some sites' Content-Security-Policy blocks injected scripts. Follow the steps
+     below to extract via paste instead.</p>
+
+  <p class="step">1. Copy the page HTML</p>
+  <p class="muted">Run this in the devtools console on the page you want to convert:</p>
   <div class="row">
     <pre id="snippet">copy(JSON.stringify({url: location.href, html: document.documentElement.outerHTML}))</pre>
     <button class="secondary" id="copy-snippet">Copy snippet</button>
   </div>
-  <p class="muted">Paste the blob (or raw HTML) here — same engine, via <code>Mantis.fromHTML</code>,
-     entirely in this tab:</p>
-  <textarea id="html-in" rows="8" placeholder='{"url": "…", "html": "<html>…"} or raw <html>…' spellcheck="false"></textarea>
+
+  <p class="step">2. Paste and convert</p>
+  <p class="muted">Paste the blob below (raw HTML works too):</p>
+  <textarea id="html-in" rows="6" placeholder='{"url": "…", "html": "<html>…"} or raw <html>…' spellcheck="false"></textarea>
   <div class="row">
-    <input type="url" id="url-in" placeholder="Original URL (optional — taken from the blob if present)">
+    <input type="url" id="url-in" placeholder="Original URL (optional, taken from the blob if present)">
     <button id="convert">Convert</button>
   </div>
+
+  <p class="step">3. Copy the Markdown</p>
   <textarea id="md-out" rows="14" readonly spellcheck="false" placeholder="Markdown appears here"></textarea>
   <div class="row">
     <button id="copy">Copy</button>
@@ -79,7 +87,7 @@
         try {
           const blob = JSON.parse(html);
           if (blob.html) { html = blob.html; url = url || blob.url; }
-        } catch (e) { /* not a blob — treat as raw HTML */ }
+        } catch (e) { /* not a blob; treat as raw HTML */ }
       }
       const article = Mantis.fromHTML(html, { DOMParser: window.DOMParser, url });
       const markdown = Mantis.toMarkdown(article, { frontmatter: true, images: "alt" });
