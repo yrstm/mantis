@@ -33,13 +33,14 @@
   "use strict";
 
   // Negative signals in id/class names.
-  var BAD = /comment|reply|sidebar|footer|header|navbar|nav-|menu|share|social|promo|related|recommend|advert|sponsor|cookie|newsletter|subscribe|masthead|breadcrumb|disclaimer|meter-banner|jump-to-recipe/i;
+  var BAD = /comment|reply|footer|header|navbar|nav-|menu|share|social|promo|related|recommend|advert|sponsor|cookie|subscribe|masthead|breadcrumb|disclaimer|meter-banner|jump-to-recipe/i;
+  var CHROME_CLASS = /(^|[\s_-])(sidebar|newsletter)([\s_]|$)/i;
   var GOOD = /article|body|content|entry|main|markdown|markup|post|story|text|docs|recipe/i;
   var HIDDEN_CLASS = /(^|\s)(hidden|collapsed|visually-hidden|sr-only|screen-reader|u-hidden|is-hidden)(\s|$)/i;
   var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1 };
   var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading" };
 
-  function textOf(el) { return (el.textContent || "").replace(/\s+/g, " ").trim(); }
+  function textOf(el) { return (el && el.textContent || "").replace(/\s+/g, " ").trim(); }
 
   function attr(el, name) {
     return el && el.getAttribute ? (el.getAttribute(name) || "").trim() : "";
@@ -122,6 +123,13 @@
     return el.className && el.className.baseVal !== undefined ? "" : el.className || "";
   }
 
+  function chromeSignal(el) {
+    var sig = signature(el);
+    if (BAD.test(sig)) return true;
+    if (!CHROME_CLASS.test(sig)) return false;
+    return !/\bnewsletter\b.*\b(post|article|story|body|content)\b/i.test(sig);
+  }
+
   function hidden(el) {
     for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
       if (/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) return true;
@@ -143,8 +151,7 @@
     // does any ancestor up to the candidate look like page chrome?
     for (var n = el; n && n !== stopAt; n = n.parentElement) {
       if (hidden(n)) return true;
-      var sig = signature(n);
-      if (BAD.test(sig)) return true;
+      if (chromeSignal(n)) return true;
       if (/^(NAV|FOOTER|HEADER|ASIDE|FORM)$/.test(n.tagName)) return true;
     }
     return false;
@@ -166,7 +173,7 @@
     if (/^(SECTION)$/.test(el.tagName)) m += 0.2;
     if (/^(article|main)$/i.test(el.getAttribute && (el.getAttribute("role") || ""))) m += 0.25;
     if (GOOD.test(sig)) m += 0.25;
-    if (BAD.test(sig) || /^(NAV|FOOTER|HEADER|ASIDE|FORM)$/.test(el.tagName)) m *= 0.15;
+    if (chromeSignal(el) || /^(NAV|FOOTER|HEADER|ASIDE|FORM)$/.test(el.tagName)) m *= 0.15;
     return m;
   }
 
@@ -736,11 +743,17 @@
       ["url", article.canonicalUrl || article.url], ["published", article.publishedAt],
       ["modified", article.modifiedAt], ["captured", article.capturedAt],
       ["language", article.language], ["contentType", article.contentType],
+      ["captureMode", article.captureMode],
       ["contentHash", article.contentHash], ["textHash", article.textHash]
     ];
     for (var i = 0; i < pairs.length; i++) {
       if (pairs[i][1]) out.push(pairs[i][0] + ": " + yamlEscape(pairs[i][1]));
     }
+    if (article.selection && article.selection.text) out.push("selectionChars: " + article.selection.text.length);
+    if (article.blocks) out.push("blockCount: " + article.blocks.length);
+    if (article.citations) out.push("citationCount: " + article.citations.length);
+    if (article.links) out.push("linkCount: " + article.links.length);
+    if (article.tables) out.push("tableCount: " + article.tables.length);
     if (typeof article.confidence === "number") out.push("confidence: " + article.confidence);
     if (article.warnings && article.warnings.length) out.push("warnings: [" + article.warnings.join(", ") + "]");
     out.push("---");

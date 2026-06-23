@@ -14,6 +14,7 @@ or clean Markdown. Zero dependencies, single file, never fetches anything.
 ## Article object (stable fields)
 
 title, byline, siteName, hero, url, canonicalUrl, language, publishedAt, modifiedAt,
+optional captureMode ("page" | "selection"),
 status ("completed" | "partial" | "empty"),
 contentType ("article" | "docs" | "recipe" | "forum" | "newsletter" | "product" | "video" | "unknown"),
 capturedAt, contentHash (semantic dedup across sessions), textHash (content-change detection),
@@ -42,7 +43,7 @@ status "empty" → empty_content set; "partial" → low_confidence or short_cont
 
 ## toMarkdown options
 
-frontmatter: true — YAML header (title, byline, url, confidence, contentHash, warnings)
+frontmatter: true — YAML header (title, byline, url, captureMode, counts, confidence, contentHash, warnings)
 images: "omit" (default) | "alt" | "links"
 tables: true (default)
 maxChars: N — cuts at block boundaries; never mid-sentence (~4 chars per token)

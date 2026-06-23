@@ -11,6 +11,7 @@
   function metadataLine(article, markdown) {
     const tokens = Math.round(markdown.length / 4);
     const parts = [
+      article.captureMode || "page",
       article.contentType || "unknown",
       `confidence ${Number(article.confidence || 0).toFixed(2)}`,
       `${markdown.length} chars`,
@@ -90,12 +91,73 @@
     return navigator.clipboard.writeText(markdown).then(() => true, () => false);
   }
 
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function metadataHead() {
+    const parts = [`<title>${escapeHtml(document.title)}</title>`];
+    const canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical && canonical.href) {
+      parts.push(`<link rel="canonical" href="${escapeHtml(canonical.href)}">`);
+    }
+
+    ["author", "byl", "parsely-author", "language"].forEach((name) => {
+      const el = document.querySelector(`meta[name="${name}"]`);
+      if (el && el.content) parts.push(`<meta name="${name}" content="${escapeHtml(el.content)}">`);
+    });
+    ["og:title", "og:site_name", "og:image", "article:author", "article:published_time", "article:modified_time"].forEach((property) => {
+      const el = document.querySelector(`meta[property="${property}"]`);
+      if (el && el.content) parts.push(`<meta property="${property}" content="${escapeHtml(el.content)}">`);
+    });
+    return parts.join("");
+  }
+
+  function selectedArticle() {
+    const selection = window.getSelection && window.getSelection();
+    const text = selection ? String(selection).replace(/\s+/g, " ").trim() : "";
+    if (!selection || !selection.rangeCount || text.length < 20) return null;
+
+    const wrapper = document.createElement("article");
+    for (let i = 0; i < selection.rangeCount; i++) {
+      wrapper.appendChild(selection.getRangeAt(i).cloneContents());
+    }
+    if (!wrapper.textContent || !wrapper.textContent.trim()) return null;
+    if (!wrapper.querySelector("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6")) {
+      wrapper.textContent = "";
+      const p = document.createElement("p");
+      p.textContent = text;
+      wrapper.appendChild(p);
+    }
+
+    const html = `<!doctype html><html><head>${metadataHead()}</head><body><article>${wrapper.innerHTML}</article></body></html>`;
+    const article = window.Mantis.fromHTML(html, {
+      url: location.href,
+      DOMParser: window.DOMParser,
+      minTextLength: 0
+    });
+    article.captureMode = "selection";
+    article.selection = {
+      object: "selection",
+      text: text.slice(0, 8000),
+      note: "Captured from active browser selection",
+      createdAt: new Date().toISOString(),
+      source: { selector: "selection" }
+    };
+    return article;
+  }
+
   if (!window.Mantis || !window.Mantis.extract || !window.Mantis.toMarkdown) {
     alert("Mantis extension could not load the extractor.");
     return;
   }
 
-  const article = window.Mantis.extract(document);
+  const article = selectedArticle() || window.Mantis.extract(document);
+  if (!article.captureMode) article.captureMode = "page";
   const markdown = window.Mantis.toMarkdown(article, {
     frontmatter: true,
     images: "alt",

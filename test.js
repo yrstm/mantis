@@ -183,6 +183,52 @@ test("extracts tables as rows and cells", () => {
   assert.deepStrictEqual(s.tables[0].rows[1], ["Q2", "12"]);
 });
 
+const NEWSLETTER_POST = new JSDOM(`<!doctype html><html><head>
+<title>Newsletter Post - Site</title><meta property="article:author" content="Newsletter Author">
+</head><body>
+<article class="typography newsletter-post post">
+  <h1>Newsletter Post</h1>
+  <div class="body markup">
+    <p>Newsletter body paragraph should be treated as the article, not as a signup widget.</p>
+    <p>Second newsletter paragraph keeps the article long enough to score confidently.</p>
+  </div>
+  <div class="subscribe-widget"><p>Subscribe form copy should not become the extracted article.</p></div>
+</article>
+</body></html>`).window.document;
+const newsletterPost = Mantis.extract(NEWSLETTER_POST);
+test("does not reject newsletter-post article classes", () => {
+  assert.strictEqual(newsletterPost.status, "completed");
+  assert.ok(newsletterPost.text.includes("Newsletter body paragraph"));
+  assert.ok(!newsletterPost.text.includes("Subscribe form copy"));
+});
+
+const STRIPE_SHELL = new JSDOM(`<!doctype html><html><head>
+<title>Fees report | Stripe Documentation</title>
+</head><body>
+<div class="Shell Shell-loaded Sidebar--expanded">
+  <aside class="SidebarContainer"><p>Sidebar navigation should be ignored.</p></aside>
+  <main><article>
+    <h1>Fees report</h1>
+    <p>The Fees report provides a list of fees taken from your balance and financial accounts.</p>
+    <p>Detailed fee reporting lets you reconcile fees with balance activity and downloaded reports.</p>
+    <table>
+      <tr><th>Column name</th><th>Description</th></tr>
+      <tr><td>suite</td><td>An integrated group of products offering extensive functionality.</td></tr>
+    </table>
+  </article></main>
+</div>
+</body></html>`).window.document;
+const stripeShell = Mantis.extract(STRIPE_SHELL);
+test("does not reject content under expanded sidebar page shells", () => {
+  assert.strictEqual(stripeShell.status, "completed");
+  assert.ok(stripeShell.text.includes("The Fees report provides"));
+  assert.ok(!stripeShell.text.includes("Sidebar navigation"));
+});
+test("extracts captionless tables without throwing", () => {
+  assert.strictEqual(stripeShell.tables[0].caption, "");
+  assert.deepStrictEqual(stripeShell.tables[0].headers, ["Column name", "Description"]);
+});
+
 const EMPTY = new JSDOM("<html><head><title>Empty</title></head><body><nav>Only navigation</nav></body></html>").window.document;
 const empty = Mantis.extract(EMPTY);
 test("reports empty extraction status and warnings", () => {

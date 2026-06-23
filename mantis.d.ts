@@ -118,6 +118,7 @@ export interface MantisRunOptions {
 
 export interface MantisArticle {
   object: "article";
+  captureMode?: "page" | "selection";
   title: string;
   byline: string;
   hero: string;

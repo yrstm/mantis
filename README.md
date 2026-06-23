@@ -29,7 +29,7 @@ Mantis keeps the useful parts:
 | Method | Approx tokens | What the agent gets |
 |---|---:|---|
 | Browser copy from a noisy docs page | 221 | Visible text mixed with nav, sidebars, footer, no links |
-| Mantis Markdown with frontmatter | 151 | Main content, title, author, canonical URL, links, code, confidence |
+| Mantis Markdown with frontmatter | 151 | Main content, title, author, canonical URL, links, code, capture mode, confidence |
 | Raw page HTML | 1,000+ | Markup, scripts, chrome, duplicated responsive content |
 
 Example Mantis output:
@@ -140,6 +140,9 @@ const article = Mantis.fromHTML(html, {
 Hard caps: 200 links, 100 images, 50 tables. `selection` is only captured in a live browser
 context; it is always `null` in `fromHTML()`.
 
+Frontmatter also includes cheap routing signals when available: `captureMode`, `selectionChars`,
+`blockCount`, `citationCount`, `linkCount`, and `tableCount`.
+
 `run()` options:
 
 | Option | Default |
@@ -227,8 +230,10 @@ The repo can be loaded directly as an unpacked Chrome/Chromium MV3 extension:
 4. Click the Mantis toolbar action on any `http` or `https` page.
 
 The action injects `mantis.js` and `extension/capture.js` into the active tab, extracts the rendered
-DOM, copies Markdown to the clipboard, and shows an in-page panel with the capture. It uses
-`activeTab`, so it does not request broad host permissions up front.
+DOM, copies Markdown to the clipboard, and shows an in-page panel with the capture. If the page has
+an active text selection, including a full-page `Cmd+A` selection, the extension converts the
+selected DOM range instead of the whole page. It uses `activeTab`, so it does not request broad host
+permissions up front.
 
 This is the preferred live-page capture path for strict CSP sites. Extension content scripts run as
 extension code instead of bookmarklet code loaded by the page.
