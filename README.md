@@ -217,6 +217,22 @@ PORT=3000 npm run demo
 node demo/server.js 3000
 ```
 
+## Extension
+
+The repo can be loaded directly as an unpacked Chrome/Chromium MV3 extension:
+
+1. Open `chrome://extensions`.
+2. Enable Developer mode.
+3. Choose **Load unpacked** and select this repo.
+4. Click the Mantis toolbar action on any `http` or `https` page.
+
+The action injects `mantis.js` and `extension/capture.js` into the active tab, extracts the rendered
+DOM, copies Markdown to the clipboard, and shows an in-page panel with the capture. It uses
+`activeTab`, so it does not request broad host permissions up front.
+
+This is the preferred live-page capture path for strict CSP sites. Extension content scripts run as
+extension code instead of bookmarklet code loaded by the page.
+
 ## Bookmarklet
 
 ```js

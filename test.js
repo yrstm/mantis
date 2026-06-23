@@ -2,6 +2,8 @@
 "use strict";
 
 const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
 const { JSDOM } = require("jsdom");
 const Mantis = require("./mantis.js");
 
@@ -338,6 +340,18 @@ test("fromHTML extracts from an HTML string with an injected DOMParser", () => {
   assert.strictEqual(article.url, "https://example.com/server/page");
   assert.ok(article.paragraphs.length >= 2);
   assert.ok(Mantis.toMarkdown(article).includes("[relative docs link](https://example.com/docs)"));
+});
+
+/* ---------- extension manifest ---------- */
+test("MV3 extension manifest points at existing capture files", () => {
+  const manifest = require("./manifest.json");
+  assert.strictEqual(manifest.manifest_version, 3);
+  assert.ok(manifest.permissions.includes("activeTab"));
+  assert.ok(manifest.permissions.includes("scripting"));
+  assert.strictEqual(manifest.background.service_worker, "extension/background.js");
+  assert.ok(fs.existsSync(path.join(__dirname, manifest.background.service_worker)));
+  assert.ok(fs.existsSync(path.join(__dirname, "extension/capture.js")));
+  assert.ok(fs.existsSync(path.join(__dirname, "mantis.js")));
 });
 
 /* ---------- run(): local copy, configured POST, configured fallback ---------- */

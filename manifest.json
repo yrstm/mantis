@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Mantis",
+  "description": "Capture the rendered page as clean Markdown for agents.",
+  "version": "0.3.0",
+  "action": {
+    "default_title": "Capture with Mantis"
+  },
+  "background": {
+    "service_worker": "extension/background.js"
+  },
+  "permissions": [
+    "activeTab",
+    "clipboardWrite",
+    "scripting"
+  ]
+}
