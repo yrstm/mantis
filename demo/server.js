@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// Mantis markdown demo. Serves the landing page, the overlay script, and
+// Mantis agent Markdown demo. Serves the landing page, the overlay script, and
 // your working copy of mantis.js — nothing else. All extraction happens in
 // the visited page; this server never receives or stores anything.
 
@@ -34,6 +34,6 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Mantis markdown demo at http://${host}:${port}`);
-  console.log("Drag the bookmarklet from that page, then click it on any article.");
+  console.log(`Mantis agent Markdown demo at http://${host}:${port}`);
+  console.log("Drag the capture button from that page, then click it on any article.");
 });
