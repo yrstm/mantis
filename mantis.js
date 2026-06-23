@@ -38,8 +38,8 @@
   var BAD = /comment|reply|sidebar|footer|header|navbar|nav-|menu|share|social|promo|related|recommend|advert|sponsor|cookie|newsletter|subscribe|masthead|breadcrumb|disclaimer|meter-banner|jump-to-recipe/i;
   var GOOD = /article|body|content|entry|main|markdown|markup|post|story|text|docs|recipe/i;
   var HIDDEN_CLASS = /(^|\s)(hidden|collapsed|visually-hidden|sr-only|screen-reader|u-hidden|is-hidden)(\s|$)/i;
-  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1 };
-  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading" };
+  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, DD: 1 };
+  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading", DD: "paragraph" };
 
   function textOf(el) { return (el.textContent || "").replace(/\s+/g, " ").trim(); }
 
@@ -147,7 +147,17 @@
       if (hidden(n)) return true;
       var sig = signature(n);
       if (BAD.test(sig)) return true;
-      if (/^(NAV|FOOTER|HEADER|ASIDE|FORM)$/.test(n.tagName)) return true;
+      if (/^(NAV|FOOTER|ASIDE|FORM)$/.test(n.tagName)) return true;
+      if (n.tagName === "HEADER") {
+        // <header> inside an article or section is the content's own header
+        // (title, subtitle, byline), not page chrome — only flag site-level headers
+        var inSection = false;
+        for (var p = n.parentElement; p; p = p.parentElement) {
+          if (/^(ARTICLE|SECTION)$/.test(p.tagName)) { inSection = true; break; }
+          if (p === stopAt) break;
+        }
+        if (!inSection) return true;
+      }
     }
     return false;
   }
@@ -181,7 +191,7 @@
 
   // score readable nodes, weighting direct containers and semantic ancestors
   function findContent(doc) {
-    var ps = doc.querySelectorAll("p, blockquote, pre, li");
+    var ps = doc.querySelectorAll("p, blockquote, pre, li, dd");
     var scores = [];
     var seen = [];
     for (var i = 0; i < ps.length; i++) {
@@ -339,7 +349,7 @@
   function blocksFrom(scope, stopAt, doc, options) {
     var out = [];
     var used = {};
-    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6");
+    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6, dd");
     for (var i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
       var el = nodes[i];
       if (!KEEP[el.tagName]) continue;
@@ -590,6 +600,10 @@
     var scopeInfo = findContent(doc);
     var scope = scopeInfo.el;
     var blocks = scope ? blocksFrom(scope, scope, doc, options) : [];
+    if (blocks.length < 2) {
+      var mainEl = doc.querySelector('main, [role="main"]');
+      if (mainEl && mainEl !== scope) blocks = blocksFrom(mainEl, mainEl, doc, options);
+    }
     if (blocks.length < 2 && doc.body) blocks = blocksFrom(doc.body, doc.body, doc, options);
     var paragraphs = paragraphsFromBlocks(blocks);
     var sections = sectionsFromBlocks(blocks);

@@ -181,6 +181,58 @@ test("extracts tables as rows and cells", () => {
   assert.deepStrictEqual(s.tables[0].rows[1], ["Q2", "12"]);
 });
 
+/* ---------- extract(): <header> inside article/section is content, not chrome ---------- */
+const ARTICLE_HEADER = new JSDOM(`<!doctype html><html><body>
+<article>
+  <header>
+    <h1>Article With Semantic Header</h1>
+    <p>The subtitle of this article provides additional context for the reader here.</p>
+  </header>
+  <section>
+    <header>
+      <h2>Section One</h2>
+    </header>
+    <p>Section content paragraph that is long enough to pass the minimum length filter.</p>
+  </section>
+</article>
+</body></html>`).window.document;
+const ah = Mantis.extract(ARTICLE_HEADER);
+test("extracts content from <header> inside <article> and <section>", () => {
+  const joined = ah.paragraphs.join(" ");
+  assert.ok(joined.includes("subtitle"), "subtitle from article header");
+  assert.ok(joined.includes("Section content"), "content from section body");
+  assert.ok(ah.blocks.some((b) => b.type === "heading" && b.text === "Section One"),
+    "heading from section header");
+});
+test("site-level <header> is still excluded after sectioning fix", () => {
+  const siteHeader = new JSDOM(`<html><body>
+    <header><p>${"site-level navigation link text ".repeat(5)}</p></header>
+    <article><p>${"real article content paragraph ".repeat(5)}</p></article>
+  </body></html>`).window.document;
+  const out = Mantis.extract(siteHeader);
+  assert.ok(!out.text.includes("navigation"), "site header paragraph excluded");
+  assert.ok(out.text.includes("real article content"), "article content kept");
+});
+
+/* ---------- extract(): <dd> definition descriptions extracted ---------- */
+const DL_PAGE = new JSDOM(`<!doctype html><html><body>
+<article>
+  <h1>API Reference</h1>
+  <p>Introduction paragraph that is long enough to pass the minimum length filter here.</p>
+  <dl>
+    <dt>parameter_name</dt>
+    <dd>The first parameter description, which is long enough to be extracted by the extractor.</dd>
+    <dt>another_param</dt>
+    <dd>The second parameter description, also long enough to be captured for the output.</dd>
+  </dl>
+</article>
+</body></html>`).window.document;
+const dl = Mantis.extract(DL_PAGE);
+test("extracts definition descriptions (dd) as paragraph blocks", () => {
+  assert.ok(dl.text.includes("first parameter description"), "first dd captured");
+  assert.ok(dl.text.includes("second parameter description"), "second dd captured");
+});
+
 const EMPTY = new JSDOM("<html><head><title>Empty</title></head><body><nav>Only navigation</nav></body></html>").window.document;
 const empty = Mantis.extract(EMPTY);
 test("reports empty extraction status and warnings", () => {
