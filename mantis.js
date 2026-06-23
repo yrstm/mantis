@@ -35,11 +35,11 @@
   "use strict";
 
   // Negative signals in id/class names.
-  var BAD = /comment|reply|sidebar|footer|header|navbar|nav-|menu|share|social|promo|related|recommend|advert|sponsor|cookie|newsletter|subscribe|masthead|breadcrumb|disclaimer|meter-banner|jump-to-recipe/i;
+  var BAD = /comment|reply|sidebar|footer|header|navbar|nav-|menu|share|social|promo|related|recommend|advert|sponsor|cookie|subscribe(?!r)|masthead|breadcrumb|disclaimer|meter-banner|jump-to-recipe/i;
   var GOOD = /article|body|content|entry|main|markdown|markup|post|story|text|docs|recipe/i;
   var HIDDEN_CLASS = /(^|\s)(hidden|collapsed|visually-hidden|sr-only|screen-reader|u-hidden|is-hidden)(\s|$)/i;
-  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1 };
-  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading" };
+  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, DD: 1 };
+  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading", DD: "paragraph" };
 
   function textOf(el) { return (el.textContent || "").replace(/\s+/g, " ").trim(); }
 
@@ -147,7 +147,17 @@
       if (hidden(n)) return true;
       var sig = signature(n);
       if (BAD.test(sig)) return true;
-      if (/^(NAV|FOOTER|HEADER|ASIDE|FORM)$/.test(n.tagName)) return true;
+      if (/^(NAV|FOOTER|ASIDE|FORM)$/.test(n.tagName)) return true;
+      if (n.tagName === "HEADER") {
+        // <header> inside an article or section is the content's own header
+        // (title, subtitle, byline), not page chrome — only flag site-level headers
+        var inSection = false;
+        for (var p = n.parentElement; p; p = p.parentElement) {
+          if (/^(ARTICLE|SECTION)$/.test(p.tagName)) { inSection = true; break; }
+          if (p === stopAt) break;
+        }
+        if (!inSection) return true;
+      }
     }
     return false;
   }
@@ -181,7 +191,7 @@
 
   // score readable nodes, weighting direct containers and semantic ancestors
   function findContent(doc) {
-    var ps = doc.querySelectorAll("p, blockquote, pre, li");
+    var ps = doc.querySelectorAll("p, blockquote, pre, li, dd");
     var scores = [];
     var seen = [];
     for (var i = 0; i < ps.length; i++) {
@@ -339,7 +349,7 @@
   function blocksFrom(scope, stopAt, doc, options) {
     var out = [];
     var used = {};
-    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6");
+    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6, dd");
     for (var i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
       var el = nodes[i];
       if (!KEEP[el.tagName]) continue;
@@ -391,12 +401,12 @@
 
   function sectionsFromBlocks(blocks) {
     var sections = [];
-    var current = { heading: "", level: 0, blocks: [] };
+    var current = { object: "section", heading: "", level: 0, blocks: [] };
     for (var i = 0; i < blocks.length; i++) {
       var block = blocks[i];
       if (block.type === "heading") {
         if (current.heading || current.blocks.length) sections.push(current);
-        current = { heading: block.text, level: block.level, blocks: [] };
+        current = { object: "section", heading: block.text, level: block.level, blocks: [] };
       } else {
         current.blocks.push(block);
       }
@@ -590,6 +600,10 @@
     var scopeInfo = findContent(doc);
     var scope = scopeInfo.el;
     var blocks = scope ? blocksFrom(scope, scope, doc, options) : [];
+    if (blocks.length < 2) {
+      var mainEl = doc.querySelector('main, [role="main"]');
+      if (mainEl && mainEl !== scope) blocks = blocksFrom(mainEl, mainEl, doc, options);
+    }
     if (blocks.length < 2 && doc.body) blocks = blocksFrom(doc.body, doc.body, doc, options);
     var paragraphs = paragraphsFromBlocks(blocks);
     var sections = sectionsFromBlocks(blocks);
@@ -844,6 +858,21 @@
     return out.join("\n\n").trim();
   }
 
+  function inlineHTML(block) {
+    if (!block.runs || !block.runs.length) return escapeHtml(block.text || "");
+    var out = "";
+    for (var i = 0; i < block.runs.length; i++) {
+      var run = block.runs[i];
+      var text = escapeHtml(run.text);
+      if (run.type === "strong") out += "<strong>" + text + "</strong>";
+      else if (run.type === "em") out += "<em>" + text + "</em>";
+      else if (run.type === "code") out += "<code>" + text + "</code>";
+      else if (run.type === "link") out += '<a href="' + escapeHtml(run.href || "") + '">' + text + "</a>";
+      else out += text;
+    }
+    return out;
+  }
+
   function toHTML(article) {
     var out = ['<article class="mantis-reader">'];
     if (article.title) out.push("<h1>" + escapeHtml(article.title) + "</h1>");
@@ -877,15 +906,15 @@
         }
         var top = stack[stack.length - 1];
         if (top.openItem) out.push("</li>");
-        out.push("<li>" + escapeHtml(b.text));
+        out.push("<li>" + inlineHTML(b));
         top.openItem = true;
         continue;
       }
       closeLists(0);
-      if (b.type === "heading") out.push("<h" + b.level + ">" + escapeHtml(b.text) + "</h" + b.level + ">");
-      else if (b.type === "blockquote") out.push("<blockquote>" + escapeHtml(b.text) + "</blockquote>");
+      if (b.type === "heading") out.push("<h" + b.level + ">" + inlineHTML(b) + "</h" + b.level + ">");
+      else if (b.type === "blockquote") out.push("<blockquote>" + inlineHTML(b) + "</blockquote>");
       else if (b.type === "code") out.push("<pre><code" + (b.language ? ' class="language-' + escapeHtml(b.language) + '"' : "") + ">" + escapeHtml(b.text) + "</code></pre>");
-      else out.push("<p>" + escapeHtml(b.text) + "</p>");
+      else out.push("<p>" + inlineHTML(b) + "</p>");
     }
     closeLists(0);
     var tables = article.tables || [];
