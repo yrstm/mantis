@@ -35,10 +35,8 @@
   <p>Converts readable web content to clean Markdown: articles, docs, newsletters, and reference pages.</p>
   <p>Mantis captures the rendered DOM you can see and turns the main content into structured,
      token-efficient Markdown for an agent.</p>
-  <p><a class="bookmarklet" id="bm" href="#">Capture agent Markdown</a></p>
-  <p class="muted">Drag the button to your bookmarks bar, then click it on a page. The overlay shows
-     Markdown with frontmatter, copy controls, and budget options. Select text first to capture just
-     the selection.</p>
+  <p class="muted">Use the extension for live pages: click the Mantis toolbar action, or select text
+     first and click it to convert the selected DOM range.</p>
   <p><strong>Nothing leaves the page.</strong></p>
 
   <h2>What changes for an agent</h2>
@@ -145,10 +143,9 @@ See the [error reference](https://docs.example.com/api/errors) for retry behavio
     </section>
   </div>
 
-  <h2>When the bookmarklet cannot run</h2>
-  <p class="muted">Strict Content-Security-Policy can block bookmarklet script injection. Safari can
-     also block <code>https</code> pages from loading localhost scripts. Run this in the page's
-     devtools console to copy the URL and rendered HTML as one blob:</p>
+  <h2>Paste converter</h2>
+  <p class="muted">For a local fallback or saved HTML, run this in the page's devtools console to
+     copy the URL and rendered HTML as one blob:</p>
   <div class="row">
     <pre id="snippet">copy(JSON.stringify({url: location.href, html: document.documentElement.outerHTML}))</pre>
     <button class="secondary" id="copy-snippet">Copy snippet</button>
@@ -165,6 +162,11 @@ See the [error reference](https://docs.example.com/api/errors) for retry behavio
     <button id="copy">Copy</button>
     <span class="muted" id="stats"></span>
   </div>
+
+  <h2>Developer bookmarklet</h2>
+  <p><a class="bookmarklet" id="bm" href="#">Capture agent Markdown</a></p>
+  <p class="muted">This tests the old bookmarklet delivery path. Strict Content-Security-Policy can
+     block it, which is why the extension is the primary capture path.</p>
 
   <script src="/mantis.js"></script>
   <script>

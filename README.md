@@ -195,31 +195,6 @@ const result = await page.evaluate(() => {
 See `examples/` for runnable wrappers: a Claude tool, an OpenAI function, and a Playwright
 extraction script.
 
-## Demo
-
-```sh
-npm run demo
-```
-
-Open `http://127.0.0.1:8787`. The page has two capture paths:
-
-- Bookmarklet: drag **Capture agent Markdown** to your bookmarks bar, then click it on a page.
-- Paste fallback: run the one-line snippet on a page, paste the rendered HTML blob, and convert it.
-
-The bookmarklet is convenient on permissive pages, but strict Content-Security-Policy can block
-script injection. The paste fallback uses the same engine through `Mantis.fromHTML()`.
-
-Nothing is uploaded anywhere. The demo server only serves `demo/index.html`, `demo/overlay.js`, and
-your local `mantis.js`.
-
-Port conflict:
-
-```sh
-PORT=3000 npm run demo
-# or
-node demo/server.js 3000
-```
-
 ## Extension
 
 The repo can be loaded directly as an unpacked Chrome/Chromium MV3 extension:
@@ -238,7 +213,28 @@ permissions up front.
 This is the preferred live-page capture path for strict CSP sites. Extension content scripts run as
 extension code instead of bookmarklet code loaded by the page.
 
-## Bookmarklet
+## Demo
+
+```sh
+npm run demo
+```
+
+Open `http://127.0.0.1:8787` to see the browser-copy versus Mantis comparison and use the paste
+converter. The demo also includes a bookmarklet for development and failure-mode testing, but the
+extension is the simple live-page capture path.
+
+Nothing is uploaded anywhere. The demo server only serves `demo/index.html`, `demo/overlay.js`, and
+your local `mantis.js`.
+
+Port conflict:
+
+```sh
+PORT=3000 npm run demo
+# or
+node demo/server.js 3000
+```
+
+## Bookmarklet Helper
 
 ```js
 javascript:(function(){
@@ -250,8 +246,8 @@ javascript:(function(){
 })();
 ```
 
-The bookmarklet path is a convenience layer. For strict CSP sites, use an extension/content-script
-integration or the paste fallback.
+The bookmarklet path is a convenience layer for permissive pages and local development. For normal
+use, prefer the extension.
 
 By default, `Mantis.run()` does not upload anything; it copies Markdown locally or shows an in-page
 copy panel. To send captures to an agent or local service, configure a destination:
