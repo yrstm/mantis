@@ -181,6 +181,39 @@ test("extracts tables as rows and cells", () => {
   assert.deepStrictEqual(s.tables[0].rows[1], ["Q2", "12"]);
 });
 
+/* ---------- extract(): newsletter platform content wrappers ---------- */
+// "newsletter" class names are content structure on newsletter platforms (Substack, Beehiiv, etc.)
+// "subscriber-*" class names wrap subscriber-accessible content — not chrome
+const NEWSLETTER_POST = new JSDOM(`<!doctype html><html><body>
+<div class="newsletter-post">
+  <article>
+    <h1>Newsletter Title</h1>
+    <p>${"First paragraph of the newsletter essay content that is long enough to pass filters. ".repeat(2)}</p>
+    <p>${"Second paragraph of the newsletter essay content that is also long enough to pass. ".repeat(2)}</p>
+  </article>
+</div>
+</body></html>`).window.document;
+test("extracts content from newsletter-post wrapper (Substack, Beehiiv, etc.)", () => {
+  const out = Mantis.extract(NEWSLETTER_POST);
+  assert.ok(out.paragraphs.length >= 2, "newsletter post paragraphs extracted");
+  assert.ok(out.text.includes("newsletter essay content"));
+});
+
+const SUBSCRIBER_CONTENT = new JSDOM(`<!doctype html><html><body>
+<div class="subscriber-only subscriber-content">
+  <article>
+    <h1>Subscriber Essay</h1>
+    <p>${"Subscriber content paragraph one that is long enough to be extracted by mantis. ".repeat(2)}</p>
+    <p>${"Subscriber content paragraph two that is long enough to be extracted by mantis. ".repeat(2)}</p>
+  </article>
+</div>
+</body></html>`).window.document;
+test("extracts subscriber-only content (subscriber-* class names are not chrome)", () => {
+  const out = Mantis.extract(SUBSCRIBER_CONTENT);
+  assert.ok(out.paragraphs.length >= 2, "subscriber content extracted");
+  assert.ok(out.text.includes("Subscriber content paragraph"));
+});
+
 /* ---------- extract(): <header> inside article/section is content, not chrome ---------- */
 const ARTICLE_HEADER = new JSDOM(`<!doctype html><html><body>
 <article>
