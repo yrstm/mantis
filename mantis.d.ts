@@ -108,6 +108,14 @@ export interface MantisMarkdownOptions {
   budget?: "cut" | "outline";
 }
 
+export interface MantisRunOptions {
+  endpoint?: string;
+  fallbackUrl?: string;
+  format?: "bundle" | "article" | "markdown";
+  markdown?: MantisMarkdownOptions;
+  keepalive?: boolean;
+}
+
 export interface MantisArticle {
   object: "article";
   title: string;
@@ -142,4 +150,5 @@ export function extract(doc: Document, options?: MantisExtractOptions): MantisAr
 export function fromHTML(html: string, options?: MantisFromHTMLOptions): MantisArticle;
 export function toMarkdown(article: Partial<MantisArticle>, options?: MantisMarkdownOptions): string;
 export function toHTML(article: Partial<MantisArticle>): string;
-export function run(scriptEl?: HTMLScriptElement): void;
+export function run(options?: MantisRunOptions): void;
+export function run(scriptEl?: HTMLScriptElement, options?: MantisRunOptions): void;

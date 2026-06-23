@@ -98,6 +98,11 @@ const markdown = Mantis.toMarkdown(article, {
 });
 
 const html = Mantis.toHTML(article);
+
+Mantis.run({
+  endpoint: "http://127.0.0.1:4111/capture",
+  format: "bundle"
+});
 ```
 
 Node, with your own DOM parser:
@@ -134,6 +139,16 @@ const article = Mantis.fromHTML(html, {
 
 Hard caps: 200 links, 100 images, 50 tables. `selection` is only captured in a live browser
 context; it is always `null` in `fromHTML()`.
+
+`run()` options:
+
+| Option | Default |
+|---|---|
+| `endpoint` | none; Markdown is copied locally or shown in an in-page panel |
+| `fallbackUrl` | none; opened if a configured POST fails |
+| `format` | `"bundle"`: metadata, Markdown, and the full article object |
+| `markdown` | `toMarkdown()` options for the Markdown in the capture |
+| `keepalive` | `false` |
 
 ## Warnings
 
@@ -216,6 +231,24 @@ javascript:(function(){
 
 The bookmarklet path is a convenience layer. For strict CSP sites, use an extension/content-script
 integration or the paste fallback.
+
+By default, `Mantis.run()` does not upload anything; it copies Markdown locally or shows an in-page
+copy panel. To send captures to an agent or local service, configure a destination:
+
+```js
+javascript:(function(){
+  var s=document.createElement('script');
+  s.src='https://YOUR-HOST/mantis.js?t='+Date.now();
+  s.setAttribute('data-mantis-run','1');
+  s.setAttribute('data-mantis-endpoint','http://127.0.0.1:4111/capture');
+  s.setAttribute('data-mantis-format','bundle');
+  (document.body||document.documentElement).appendChild(s);
+})();
+```
+
+Relative `data-mantis-endpoint` and `data-mantis-fallback-url` values resolve against the script
+URL. The POST body is JSON. `format: "bundle"` sends metadata, Markdown, and the full article;
+`"markdown"` sends metadata plus Markdown; `"article"` sends only the article object.
 
 ## Screenshot-to-Markdown (planned)
 

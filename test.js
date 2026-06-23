@@ -340,8 +340,8 @@ test("fromHTML extracts from an HTML string with an injected DOMParser", () => {
   assert.ok(Mantis.toMarkdown(article).includes("[relative docs link](https://example.com/docs)"));
 });
 
-/* ---------- run(): POST happy path, CSP fallback, double-click guard ---------- */
-async function runCase(fetchImpl) {
+/* ---------- run(): local copy, configured POST, configured fallback ---------- */
+async function runCase(fetchImpl, configureScript) {
   const dom = new JSDOM(
     '<html><head><title>T</title><meta property="og:title" content="Page Title"></head><body><div>' +
     "<p>" + "long paragraph text here ".repeat(5) + "</p>" +
@@ -351,11 +351,13 @@ async function runCase(fetchImpl) {
     { url: "https://news.example.com/story", pretendToBeVisual: true }
   );
   const w = dom.window;
-  const out = { posted: null, opened: null };
-  w.fetch = fetchImpl(out);
+  const out = { posted: null, opened: null, copied: null };
+  if (fetchImpl) w.fetch = fetchImpl(out);
   w.open = (u) => { out.opened = u; };
+  w.navigator.clipboard = { writeText: (text) => { out.copied = text; return Promise.resolve(); } };
   const s = w.document.createElement("script");
   s.src = "http://localhost:4848/mantis.js?t=1";
+  if (configureScript) configureScript(s);
   Mantis.run(s);
   Mantis.run(s); // double-click must be a no-op
   await new Promise((r) => setTimeout(r, 40));
@@ -366,24 +368,38 @@ async function runCase(fetchImpl) {
 (async () => {
   const ok = await runCase((out) => (u, o) => {
     assert.strictEqual(out.posted, null, "double-click guard failed");
-    out.posted = { url: u, crate: JSON.parse(o.body) };
+    out.posted = { url: u, payload: JSON.parse(o.body) };
     return Promise.resolve({ ok: true });
+  }, (s) => {
+    s.setAttribute("data-mantis-endpoint", "https://agent.local/capture");
+    s.setAttribute("data-mantis-format", "bundle");
   });
-  test("run() POSTs the artifact to the script's origin", () => {
-    assert.strictEqual(ok.posted.url, "http://localhost:4848/api/crates");
-    const c = ok.posted.crate;
-    assert.strictEqual(c.captured, true);
+  test("run() POSTs the artifact to a configured endpoint", () => {
+    assert.strictEqual(ok.posted.url, "https://agent.local/capture");
+    const c = ok.posted.payload;
+    assert.strictEqual(c.object, "mantis_capture");
+    assert.strictEqual(c.format, "bundle");
     assert.strictEqual(c.url, "https://news.example.com/story");
     assert.strictEqual(c.origin, "news.example.com");
-    assert.ok(c.body.length === 3);
+    assert.ok(c.markdown.includes("# Page Title"));
     assert.strictEqual(c.article.object, "article");
   });
   test("run() shows the in-page confirmation", () =>
     assert.ok(ok.window.document.querySelector('div[style*="2147483647"]')));
 
-  const blocked = await runCase(() => () => Promise.reject(new Error("csp")));
-  test("blocked POST falls back to the /save popup", () =>
-    assert.ok(/^http:\/\/localhost:4848\/save\?/.test(blocked.opened)));
+  const local = await runCase(null);
+  test("run() copies Markdown locally when no endpoint is configured", () => {
+    assert.strictEqual(local.posted, null);
+    assert.ok(local.copied.includes("# Page Title"));
+    assert.strictEqual(local.opened, null);
+  });
+
+  const blocked = await runCase(() => () => Promise.reject(new Error("network")), (s) => {
+    s.setAttribute("data-mantis-endpoint", "/capture");
+    s.setAttribute("data-mantis-fallback-url", "/capture-fallback");
+  });
+  test("blocked POST opens the configured fallback", () =>
+    assert.ok(/^http:\/\/localhost:4848\/capture-fallback\?/.test(blocked.opened)));
 
   console.log("\n" + passed + " tests passed");
 })().catch((e) => { console.error(e); process.exit(1); });

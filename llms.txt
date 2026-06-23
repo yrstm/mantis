@@ -9,7 +9,7 @@ or clean Markdown. Zero dependencies, single file, never fetches anything.
 - `Mantis.fromHTML(html, { url, DOMParser })` — server-side (inject jsdom or linkedom)
 - `Mantis.toMarkdown(article, opts?)` — renders the article as token-efficient Markdown
 - `Mantis.toHTML(article)` — renders the article as reader-mode HTML with inline formatting
-- `Mantis.run(scriptEl)` — bookmarklet helper: extracts and POSTs to origin's /api/crates
+- `Mantis.run(scriptEl?, opts?)` — bookmarklet helper: copies Markdown locally, or POSTs to a configured endpoint
 
 ## Article object (stable fields)
 
@@ -47,6 +47,17 @@ images: "omit" (default) | "alt" | "links"
 tables: true (default)
 maxChars: N — cuts at block boundaries; never mid-sentence (~4 chars per token)
 budget: "cut" (default, keep leading blocks) | "outline" (headings + section leads first); requires maxChars
+
+## run options
+
+endpoint: optional absolute or relative URL to POST the capture JSON to
+fallbackUrl: optional URL opened if the POST fails; url, title, and selected text are appended
+format: "bundle" (default: metadata + markdown + article) | "article" | "markdown"
+markdown: MantisMarkdownOptions used to render the Markdown
+keepalive: false by default
+
+When no endpoint is configured, run() writes Markdown to the clipboard when possible and otherwise
+shows an in-page copy panel. It never posts to an app-specific endpoint by default.
 
 ## extract options
 
