@@ -2,6 +2,7 @@
 "use strict";
 
 const assert = require("node:assert");
+const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { JSDOM } = require("jsdom");
@@ -530,6 +531,47 @@ test("fromHTML extracts from an HTML string with an injected DOMParser", () => {
 });
 test("fromImage requires at least one image", () => {
   assert.throws(() => Mantis.fromImage([], () => ""), /at least one image/);
+});
+
+/* ---------- macOS screenshot helper normalizer ---------- */
+test("macOS screenshot normalizer emits versioned Mantis Markdown", () => {
+  const script = path.join(__dirname, "helpers/macos-screen-capture/mantis-normalize.js");
+  const version = spawnSync(process.execPath, [script, "--version"], { encoding: "utf8" });
+  assert.strictEqual(version.status, 0, version.stderr);
+  assert.strictEqual(version.stdout.trim(), "mantis-screen-capture 0.1.0");
+
+  const payload = {
+    imagePath: "/tmp/mantis-shot.png",
+    hotkey: "⌘⇧M",
+    title: "Screenshot Capture",
+    confidence: 0.91,
+    lines: [
+      { text: "Billing settings", confidence: 0.95, x: 0.1, y: 0.8, width: 0.4, height: 0.05 },
+      { text: "Export fees report", confidence: 0.87, x: 0.1, y: 0.7, width: 0.4, height: 0.05 }
+    ]
+  };
+  const result = spawnSync(process.execPath, [script], {
+    input: JSON.stringify(payload),
+    encoding: "utf8"
+  });
+  assert.strictEqual(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes('captureMode: "image"'));
+  assert.ok(result.stdout.includes('helperVersion: "0.1.0"'));
+  assert.ok(result.stdout.includes('visionEngine: "apple-vision"'));
+  assert.ok(result.stdout.includes('imageFile: "mantis-shot.png"'));
+  assert.ok(result.stdout.includes("ocrLineCount: 2"));
+  assert.ok(result.stdout.includes("Billing settings"));
+  assert.ok(result.stdout.includes("Export fees report"));
+});
+
+test("macOS screenshot helper package is documented and versioned", () => {
+  const root = path.join(__dirname, "helpers/macos-screen-capture");
+  const main = fs.readFileSync(path.join(root, "Sources/MantisScreenCapture/main.swift"), "utf8");
+  const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
+  assert.ok(fs.existsSync(path.join(root, "Package.swift")));
+  assert.ok(main.includes('private let appVersion = "0.1.0"'));
+  assert.ok(readme.includes("Version: `0.1.0`"));
+  assert.ok(readme.includes("Cmd+Shift+M"));
 });
 
 /* ---------- extension manifest ---------- */
