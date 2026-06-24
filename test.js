@@ -176,6 +176,57 @@ test("extracts article links and images", () => {
   assert.deepStrictEqual(s.images[0].src, "https://example.com/chart.png");
   assert.strictEqual(s.images[0].alt, "Chart alt text");
 });
+const SUBSTACK_IMAGES = new JSDOM(`<!doctype html><html><body>
+<article class="typography newsletter-post post">
+  <h1>Image Heavy Post</h1>
+  <p>${"Article paragraph before the first meaningful image. ".repeat(3)}</p>
+  <figure>
+    <img src="https://substackcdn.com/image/fetch/$s_!hero!,w_1456,c_limit,f_auto,q_auto/hero.jpeg" alt="image">
+  </figure>
+  <p>${"Article paragraph between the images that keeps the content scope clear. ".repeat(3)}</p>
+  <div class="reader-card">
+    <img src="https://substackcdn.com/image/fetch/$s_!avatar!,w_40,h_40,c_fill/avatar.png" alt="X avatar for @reader">
+  </div>
+  <figure>
+    <img src="https://substackcdn.com/image/fetch/$s_!final!,w_1456,c_limit,f_auto,q_auto/final.jpeg" alt="image">
+  </figure>
+</article>
+</body></html>`, { url: "https://map.example.com/post" }).window.document;
+const substackImages = Mantis.extract(SUBSTACK_IMAGES);
+test("keeps large article images and drops Substack social avatars", () => {
+  assert.strictEqual(substackImages.images.length, 2);
+  assert.ok(substackImages.images.every((image) => /w_1456/.test(image.src)));
+  assert.ok(!substackImages.images.some((image) => /avatar|w_40|X avatar/i.test(image.src + " " + image.alt)));
+});
+test("Markdown image output excludes dropped social avatars", () => {
+  const md = Mantis.toMarkdown(substackImages, { images: "alt" });
+  assert.ok(md.includes("hero.jpeg"));
+  assert.ok(md.includes("final.jpeg"));
+  assert.ok(!md.includes("avatar.png"));
+  assert.ok(!md.includes("X avatar"));
+});
+const UI_IMAGES = new JSDOM(`<!doctype html><html><body>
+<article>
+  <h1>Article With UI Images</h1>
+  <p>${"Main article paragraph that should make this article scope win extraction. ".repeat(3)}</p>
+  <figure>
+    <img src="https://example.com/content/diagram.png" width="900" height="520" alt="Architecture diagram">
+  </figure>
+  <p>${"Second article paragraph after the diagram with enough readable prose to score well. ".repeat(3)}</p>
+  <div class="actions">
+    <img src="https://example.com/icons/x.svg" width="24" height="24" alt="Share on X">
+    <img src="https://example.com/icons/linkedin.svg" width="24" height="24" alt="LinkedIn">
+  </div>
+  <div class="post-end">
+    <img src="https://example.com/logo.svg" width="90" height="24" alt="Example logo">
+    <img src="https://example.com/badge.png" width="80" height="20" alt="Powered by Example">
+  </div>
+</article>
+</body></html>`).window.document;
+const uiImages = Mantis.extract(UI_IMAGES);
+test("drops footer, social, icon, and logo images from article captures", () => {
+  assert.deepStrictEqual(uiImages.images.map((image) => image.src), ["https://example.com/content/diagram.png"]);
+});
 test("extracts tables as rows and cells", () => {
   assert.strictEqual(s.tables[0].object, "table");
   assert.strictEqual(s.tables[0].caption, "Quarterly results");
