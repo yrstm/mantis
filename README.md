@@ -9,8 +9,8 @@ can already see. The output is compact Markdown plus metadata, citations, source
 confidence, warnings, and hashes.
 
 There is also a lower-level screenshot/image API, `Mantis.fromImage()`. It is not part of the
-extension UI yet. It lets a separate local tool, such as a macOS screenshot helper using Apple
-Vision, hand OCR or vision output to Mantis so it can be normalized into the same article shape.
+extension UI. The optional macOS menu bar helper in `helpers/macos-screen-capture` uses Apple Vision
+locally, then hands OCR output to Mantis so it can be normalized into the same article shape.
 
 One file. Zero runtime dependencies. No network requests.
 
@@ -238,7 +238,7 @@ This is the preferred live-page capture path for strict CSP sites. Extension con
 extension code instead of bookmarklet code loaded by the page.
 
 The browser extension does not take screenshots. It captures page DOM and selected DOM ranges.
-Screenshot capture should be installed as a separate local helper if you need it.
+Screenshot capture is handled by the optional macOS helper if you need it.
 
 ## Demo
 
@@ -316,9 +316,18 @@ Mantis keeps the model or OCR dependency in your stack, then handles structure, 
 hashes, warnings, and frontmatter. Screenshot captures set `captureMode: "image"` and `imageCount`,
 so agents can distinguish OCR-derived context from live DOM captures.
 
-This API is meant for a separate tool, not the browser extension. A macOS helper could bind a global
-shortcut, call `screencapture`, run Apple Vision locally, save the image and Markdown as files, and
-copy the Markdown to the clipboard. Mantis would handle the final normalization step.
+This API is meant for a separate tool, not the browser extension. The macOS helper in
+`helpers/macos-screen-capture` binds `Cmd+Shift+M`, calls `screencapture`, runs Apple Vision locally,
+saves the image and Markdown as files, and copies the Markdown to the clipboard. Mantis handles the
+final normalization step.
+
+```sh
+cd helpers/macos-screen-capture
+swift run mantis-screen-capture
+```
+
+The helper is versioned separately from the browser extension. The current helper version is
+`0.1.0`; the browser extension version remains the value in `manifest.json`.
 
 ## Development
 

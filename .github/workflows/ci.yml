@@ -29,3 +29,17 @@ jobs:
       - run: npm i --no-save playwright
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+
+  macos-screen-capture:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: swift build
+        working-directory: helpers/macos-screen-capture
+      - run: .build/debug/mantis-screen-capture --version
+        working-directory: helpers/macos-screen-capture
+      - run: node mantis-normalize.js --version
+        working-directory: helpers/macos-screen-capture
