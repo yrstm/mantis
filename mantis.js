@@ -755,7 +755,8 @@
     return marks + pad + text + pad + marks;
   }
 
-  function renderRuns(runs) {
+  function renderRuns(runs, options) {
+    options = options || {};
     var out = "";
     for (var i = 0; i < runs.length; i++) {
       var run = runs[i];
@@ -768,10 +769,16 @@
       if (text && text.charAt(text.length - 1) === " ") { tail = " "; text = text.slice(0, -1); }
       out += head;
       if (text) {
+        var atBlockStart = options.blockStart && !out;
         if (run.type === "link") out += "[" + escapeInline(text) + "](" + linkDestination(run.href) + ")";
         else if (run.type === "code") out += codeSpan(text);
-        else if (run.type === "strong") out += "**" + escapeInline(text) + "**";
-        else if (run.type === "em") out += "*" + escapeInline(text) + "*";
+        else if (run.type === "strong") {
+          var strong = atBlockStart ? "__" : "**";
+          out += strong + escapeInline(text) + strong;
+        } else if (run.type === "em") {
+          var em = atBlockStart ? "_" : "*";
+          out += em + escapeInline(text) + em;
+        }
         else out += escapeInline(text);
       }
       out += tail;
@@ -799,7 +806,7 @@
   }
 
   function inlineMarkdown(block) {
-    return block.runs && block.runs.length ? renderRuns(block.runs) : markdownText(block);
+    return block.runs && block.runs.length ? renderRuns(block.runs, { blockStart: true }) : markdownText(block);
   }
 
   function fencedCode(block) {
