@@ -5,6 +5,8 @@
   "main": "mantis.js",
   "types": "mantis.d.ts",
   "files": [
+    "extension/",
+    "manifest.json",
     "demo/",
     "mantis.d.ts",
     "mantis.js",

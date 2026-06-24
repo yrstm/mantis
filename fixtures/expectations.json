@@ -33,6 +33,15 @@
     "diagnostics": { "minConfidence": 0.65, "scopeTag": "SECTION" }
   },
   {
+    "name": "stripe docs shell",
+    "file": "stripe-docs-shell.html",
+    "expected": ["Fees report", "The Fees report provides", "Detailed fee reporting", "Report columns"],
+    "forbidden": ["Sidebar navigation"],
+    "metadata": { "title": "Fees report" },
+    "markdown": ["| Column name | Description |", "| suite | An integrated group"],
+    "diagnostics": { "minConfidence": 0.65, "scopeTag": "ARTICLE" }
+  },
+  {
     "name": "medium-like article",
     "file": "medium-like.html",
     "expected": ["Juliet medium paragraph", "Kilo medium paragraph"],
