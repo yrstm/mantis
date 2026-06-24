@@ -240,15 +240,19 @@ extension code instead of bookmarklet code loaded by the page.
 The browser extension does not take screenshots. It captures page DOM and selected DOM ranges.
 Screenshot capture should be installed as a separate local helper if you need it.
 
-## Demo
+## Public Page and Local Demo
+
+Public page: <https://yrstm.github.io/mantis/>
+
+GitHub Pages serves `docs/index.html`. The README stays in the repo; the public page is just a
+smaller install, comparison, and paste-converter page.
 
 ```sh
 npm run demo
 ```
 
-Open `http://127.0.0.1:8787` to see the browser-copy versus Mantis comparison and use the paste
-converter. The demo also includes a bookmarklet for development and failure-mode testing, but the
-extension is the simple live-page capture path.
+Open `http://127.0.0.1:8787` to run the local demo server. It is for development and browser-test
+coverage. The extension is the simple live-page capture path.
 
 Nothing is uploaded anywhere. The demo server only serves `demo/index.html`, `demo/overlay.js`, and
 your local `mantis.js`.
