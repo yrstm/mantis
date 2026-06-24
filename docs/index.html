@@ -182,6 +182,25 @@
       background: #fff;
     }
     .step strong { display: block; margin-bottom: 4px; }
+    .changelog {
+      display: grid;
+      gap: 12px;
+      max-width: 780px;
+    }
+    .change {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+    .change:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .change time {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
     .score {
       display: flex;
       flex-wrap: wrap;
@@ -232,6 +251,7 @@
         <a href="#install">Install</a>
         <a href="#compare">Compare</a>
         <a href="#paste">Paste converter</a>
+        <a href="#changelog">Changelog</a>
         <a href="https://github.com/yrstm/mantis">GitHub</a>
       </nav>
     </div>
@@ -389,6 +409,52 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
     <section class="section">
       <h2>Screenshot API</h2>
       <p class="muted">The browser extension captures DOM. Screenshot capture is a separate local-helper workflow. The library API, <code>Mantis.fromImage()</code>, lets a tool pass OCR or vision output into the same Markdown pipeline without adding OCR dependencies to the extension.</p>
+    </section>
+
+    <section class="section" id="changelog">
+      <h2>Changelog</h2>
+      <div class="changelog">
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>macOS screen capture helper (#13)</h3>
+          <p class="muted">Added an optional menu bar helper that captures a selected screenshot, runs Apple Vision locally, normalizes OCR through Mantis, saves PNG and Markdown files, and copies Markdown to the clipboard.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>Public GitHub Pages demo (#12)</h3>
+          <p class="muted">Added this public page with extension install notes, a normal-copy comparison, a paste converter, and a short screenshot API note.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>Screenshot-to-Markdown normalization (#10)</h3>
+          <p class="muted">Added <code>Mantis.fromImage()</code> so caller-supplied OCR or vision output can be normalized into Mantis articles and agent-ready Markdown.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>Non-content image filtering (#11)</h3>
+          <p class="muted">Filtered avatars, icons, badges, logos, social images, and tracking pixels while keeping useful article images, figures, charts, and diagrams.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>Extension-first capture (#9)</h3>
+          <p class="muted">Made the MV3 browser extension the primary live-page capture path, added selection capture, source-safety metadata, configurable capture delivery, and stronger extraction for docs and newsletter pages.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>Agent Markdown docs and demo (#5)</h3>
+          <p class="muted">Simplified the README and demo around rendered-DOM capture, Markdown for agents, and the browser-copy versus Mantis output comparison.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-23">2026-06-23</time>
+          <h3>Demo port override (#4)</h3>
+          <p class="muted">Documented how to run the local demo server on a different port when the default port is already in use.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-19">2026-06-19</time>
+          <h3>v0.3.0 library update (#3)</h3>
+          <p class="muted">Expanded README and agent docs, added runnable agent examples, improved inline HTML rendering, and added section object discriminators.</p>
+        </article>
+      </div>
     </section>
   </main>
 

@@ -247,6 +247,9 @@ Public page: <https://yrstm.github.io/mantis/>
 GitHub Pages serves `docs/index.html`. The README stays in the repo; the public page is just a
 smaller install, comparison, and paste-converter page.
 
+For user-facing PRs, add one short entry to the Changelog section in `docs/index.html`. Draft the
+entry plainly so it can be edited during review.
+
 ```sh
 npm run demo
 ```
