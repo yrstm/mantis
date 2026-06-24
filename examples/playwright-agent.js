@@ -5,7 +5,7 @@
 // agent that drives a browser — swap the console.log for whatever your
 // agent loop expects.
 //
-// Install: npm install playwright mantis
+// Install: npm install playwright @yrstm/mantis
 // Run:     node examples/playwright-agent.js https://example.com/article
 
 const { chromium } = require("playwright");
@@ -22,7 +22,7 @@ async function extractMarkdown(url, options = {}) {
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil, timeout });
-    await page.addScriptTag({ path: require.resolve("mantis") });
+    await page.addScriptTag({ path: require.resolve("@yrstm/mantis") });
 
     return await page.evaluate(
       ({ maxChars, budget }) => {

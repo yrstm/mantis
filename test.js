@@ -576,12 +576,11 @@ test("macOS screenshot helper package is documented and versioned", () => {
 
 test("package license metadata is Apache-2.0 with notice", () => {
   const pkg = require("./package.json");
-  const manifest = require("./manifest.json");
   const license = fs.readFileSync(path.join(__dirname, "LICENSE"), "utf8");
   const notice = fs.readFileSync(path.join(__dirname, "NOTICE"), "utf8");
+  assert.strictEqual(pkg.name, "@yrstm/mantis");
   assert.strictEqual(pkg.license, "Apache-2.0");
-  assert.strictEqual(pkg.version, "0.3.1");
-  assert.strictEqual(manifest.version, pkg.version);
+  assert.strictEqual(pkg.version, "0.3.2");
   assert.ok(pkg.files.includes("LICENSE"));
   assert.ok(pkg.files.includes("NOTICE"));
   assert.ok(license.includes("Apache License"));
@@ -589,16 +588,14 @@ test("package license metadata is Apache-2.0 with notice", () => {
   assert.ok(notice.includes("0.3.0 and earlier"));
 });
 
-/* ---------- extension manifest ---------- */
-test("MV3 extension manifest points at existing capture files", () => {
-  const manifest = require("./manifest.json");
-  assert.strictEqual(manifest.manifest_version, 3);
-  assert.ok(manifest.permissions.includes("activeTab"));
-  assert.ok(manifest.permissions.includes("scripting"));
-  assert.strictEqual(manifest.background.service_worker, "extension/background.js");
-  assert.ok(fs.existsSync(path.join(__dirname, manifest.background.service_worker)));
-  assert.ok(fs.existsSync(path.join(__dirname, "extension/capture.js")));
-  assert.ok(fs.existsSync(path.join(__dirname, "mantis.js")));
+/* ---------- public package shape ---------- */
+test("public package does not ship extension implementation", () => {
+  const pkg = require("./package.json");
+  assert.ok(!fs.existsSync(path.join(__dirname, "manifest.json")));
+  assert.ok(!fs.existsSync(path.join(__dirname, "extension")));
+  assert.ok(!pkg.files.includes("manifest.json"));
+  assert.ok(!pkg.files.some((entry) => entry === "extension/" || entry.startsWith("extension/")));
+  assert.ok(!pkg.files.includes("demo/"));
 });
 
 /* ---------- run(): local copy, configured POST, configured fallback ---------- */
