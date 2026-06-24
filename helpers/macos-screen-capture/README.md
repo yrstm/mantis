@@ -2,9 +2,8 @@
 
 Version: `0.1.0`
 
-This is an optional menu bar helper for screenshots. The browser extension remains the main Mantis
-product for DOM extraction. Use this helper only when the source is an image or screenshot rather
-than a web page DOM.
+This is an optional menu bar helper for screenshots. Use it when the source is an image or
+screenshot rather than a web page DOM.
 
 ## What It Does
 

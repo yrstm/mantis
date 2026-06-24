@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mantis browser extension</title>
+  <title>Mantis</title>
   <style>
     :root {
       color-scheme: light;
@@ -248,7 +248,7 @@
     <div class="wrap topbar">
       <div class="brand"><span class="mark">M</span><span>Mantis</span></div>
       <nav>
-        <a href="#install">Install</a>
+        <a href="#package">Package</a>
         <a href="#compare">Compare</a>
         <a href="#paste">Paste converter</a>
         <a href="#changelog">Changelog</a>
@@ -261,14 +261,13 @@
     <section class="intro">
       <div>
         <h1>Rendered pages to agent Markdown</h1>
-        <p class="lead">Mantis is a browser extension that captures the page you can see, filters page chrome, and copies clean Markdown for agents.</p>
+        <p class="lead">Mantis is a small extraction library that turns rendered web content into clean Markdown for agents.</p>
         <p class="muted">It runs over the live DOM, so it works after client-side rendering and logged-in state. Nothing is uploaded by default.</p>
         <div class="actions">
-          <a class="button" href="#install">Install unpacked</a>
+          <a class="button" href="#package">Use the package</a>
           <a class="button secondary" href="#paste">Try paste converter</a>
         </div>
         <div class="chips">
-          <span class="chip">Brave / Chrome / Chromium</span>
           <span class="chip">Rendered DOM</span>
           <span class="chip">Agent frontmatter</span>
           <span class="chip">Zero runtime dependencies</span>
@@ -298,24 +297,26 @@ Requests must include a bearer token with the `billing:read` scope.</pre>
       </div>
     </section>
 
-    <section class="section" id="install">
-      <h2>Install</h2>
+    <section class="section" id="package">
+      <h2>Package</h2>
       <div class="grid-3">
         <div class="step">
-          <strong>1. Get the repo</strong>
-          <pre>git clone https://github.com/yrstm/mantis.git
-cd mantis</pre>
+          <strong>1. Install</strong>
+          <pre>npm install @yrstm/mantis</pre>
         </div>
         <div class="step">
-          <strong>2. Load in Brave</strong>
-          <p class="muted">Open <code>brave://extensions</code>, enable Developer mode, choose <strong>Load unpacked</strong>, and select the repo root.</p>
+          <strong>2. Extract</strong>
+          <pre>const Mantis = require("@yrstm/mantis");
+const article = Mantis.fromHTML(html, options);</pre>
         </div>
         <div class="step">
-          <strong>3. Capture a page</strong>
-          <p class="muted">Pin Mantis, open a web page, and click the toolbar button. Select text first to capture only the selected DOM range.</p>
+          <strong>3. Convert</strong>
+          <pre>const markdown = Mantis.toMarkdown(article, {
+  frontmatter: true
+});</pre>
         </div>
       </div>
-      <p class="status">No local server is needed for the extension. The local demo server is only for development.</p>
+      <p class="status">The npm package name is <code>@yrstm/mantis</code>. The source stays on GitHub.</p>
     </section>
 
     <section class="section" id="compare">
@@ -408,12 +409,17 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
 
     <section class="section">
       <h2>Screenshot API</h2>
-      <p class="muted">The browser extension captures DOM. Screenshot capture is a separate local-helper workflow. The library API, <code>Mantis.fromImage()</code>, lets a tool pass OCR or vision output into the same Markdown pipeline without adding OCR dependencies to the extension.</p>
+      <p class="muted">Screenshot capture is a separate local-helper workflow. The library API, <code>Mantis.fromImage()</code>, lets a tool pass OCR or vision output into the same Markdown pipeline without adding OCR dependencies to Mantis.</p>
     </section>
 
     <section class="section" id="changelog">
       <h2>Changelog</h2>
       <div class="changelog">
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>v0.3.2 library package cleanup (#16)</h3>
+          <p class="muted">Moved the public repo back to the open-source extraction library, removed unpacked extension files and install notes, and set the npm package name to <code>@yrstm/mantis</code>.</p>
+        </article>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>
           <h3>v0.3.1 Apache-2.0 license (#15)</h3>
@@ -427,7 +433,7 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>
           <h3>Public GitHub Pages demo (#12)</h3>
-          <p class="muted">Added this public page with extension install notes, a normal-copy comparison, a paste converter, and a short screenshot API note.</p>
+          <p class="muted">Added this public page with package notes, a normal-copy comparison, a paste converter, and a short screenshot API note.</p>
         </article>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>
@@ -441,8 +447,8 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
         </article>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>
-          <h3>Extension-first capture (#9)</h3>
-          <p class="muted">Made the MV3 browser extension the primary live-page capture path, added selection capture, source-safety metadata, configurable capture delivery, and stronger extraction for docs and newsletter pages.</p>
+          <h3>Live-page capture prototype (#9)</h3>
+          <p class="muted">Added a live-page capture prototype, selection capture, source-safety metadata, configurable capture delivery, and stronger extraction for docs and newsletter pages.</p>
         </article>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>
@@ -464,7 +470,7 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
   </main>
 
   <footer>
-    <div class="wrap">Mantis is Apache-2.0 licensed. Source and install details are in the <a href="https://github.com/yrstm/mantis">GitHub repo</a>.</div>
+    <div class="wrap">Mantis is Apache-2.0 licensed. Source and package details are in the <a href="https://github.com/yrstm/mantis">GitHub repo</a>.</div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/gh/yrstm/mantis@main/mantis.js"></script>

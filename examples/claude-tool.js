@@ -1,6 +1,6 @@
 // Mantis as a Claude tool (Anthropic SDK + Playwright)
 //
-// Install: npm install @anthropic-ai/sdk playwright mantis
+// Install: npm install @anthropic-ai/sdk playwright @yrstm/mantis
 // Run:     ANTHROPIC_API_KEY=... node examples/claude-tool.js
 
 const Anthropic = require("@anthropic-ai/sdk");
@@ -45,7 +45,7 @@ async function handleExtractPageMarkdown({ url, maxChars = 12000, budget = "outl
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-    await page.addScriptTag({ path: require.resolve("mantis") });
+    await page.addScriptTag({ path: require.resolve("@yrstm/mantis") });
     return await page.evaluate(
       (opts) => Mantis.toMarkdown(Mantis.extract(document), opts),
       { frontmatter: true, maxChars, budget }

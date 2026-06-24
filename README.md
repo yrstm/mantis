@@ -1,18 +1,28 @@
 # mantis
 
-Mantis is a browser extension and small extraction library that turns visible web content into
-structured article data and clean Markdown for agents.
+Mantis is a small extraction library that turns visible web content into structured article data
+and clean Markdown for agents.
 
-The main install is the browser extension. It runs over the live DOM, not a second server-side
-fetch, so it can capture pages after client-side rendering, logged-in state, and content the user
-can already see. The output is compact Markdown plus metadata, citations, source selectors,
-confidence, warnings, and hashes.
+It runs over the live DOM, not a second server-side fetch, so it can capture pages after
+client-side rendering, logged-in state, and content the user can already see. The output is compact
+Markdown plus metadata, citations, source selectors, confidence, warnings, and hashes.
 
-There is also a lower-level screenshot/image API, `Mantis.fromImage()`. It is not part of the
-extension UI. The optional macOS menu bar helper in `helpers/macos-screen-capture` uses Apple Vision
-locally, then hands OCR output to Mantis so it can be normalized into the same article shape.
+There is also a lower-level screenshot/image API, `Mantis.fromImage()`. It is separate from the DOM
+extraction path. The optional macOS menu bar helper in `helpers/macos-screen-capture` uses Apple
+Vision locally, then hands OCR output to Mantis so it can be normalized into the same article shape.
 
 One file. Zero runtime dependencies. No network requests.
+
+## Package
+
+The npm package name is `@yrstm/mantis`.
+
+```sh
+npm install @yrstm/mantis
+```
+
+The official Mantis browser extension is packaged separately from this open-source library repo.
+The store link will be added here when it is ready.
 
 ```js
 const article = Mantis.extract(document);
@@ -114,7 +124,7 @@ Node, with your own DOM parser:
 
 ```js
 const { JSDOM } = require("jsdom");
-const Mantis = require("mantis");
+const Mantis = require("@yrstm/mantis");
 
 const article = Mantis.fromHTML(html, {
   url: "https://example.com/post",
@@ -198,7 +208,7 @@ Treat `confidence` and `diagnostics` as debugging signals. They can change betwe
 If an agent already drives Playwright or Puppeteer, Mantis should run after the page has rendered:
 
 ```js
-await page.addScriptTag({ path: require.resolve("mantis") });
+await page.addScriptTag({ path: require.resolve("@yrstm/mantis") });
 
 const result = await page.evaluate(() => {
   const article = Mantis.extract(document);
@@ -219,33 +229,12 @@ const result = await page.evaluate(() => {
 See `examples/` for runnable wrappers: a Claude tool, an OpenAI function, and a Playwright
 extraction script.
 
-## Browser Extension
-
-The repo can be loaded directly as an unpacked Chrome/Chromium MV3 extension:
-
-1. Open `chrome://extensions`.
-2. Enable Developer mode.
-3. Choose **Load unpacked** and select this repo.
-4. Click the Mantis toolbar action on any `http` or `https` page.
-
-The action injects `mantis.js` and `extension/capture.js` into the active tab, extracts the rendered
-DOM, copies Markdown to the clipboard, and shows an in-page panel with the capture. If the page has
-an active text selection, including a full-page `Cmd+A` selection, the extension converts the
-selected DOM range instead of the whole page. It uses `activeTab`, so it does not request broad host
-permissions up front.
-
-This is the preferred live-page capture path for strict CSP sites. Extension content scripts run as
-extension code instead of bookmarklet code loaded by the page.
-
-The browser extension does not take screenshots. It captures page DOM and selected DOM ranges.
-Screenshot capture is handled by the optional macOS helper if you need it.
-
 ## Public Page and Local Demo
 
 Public page: <https://yrstm.github.io/mantis/>
 
-GitHub Pages serves `docs/index.html`. The README stays in the repo; the public page is just a
-smaller install, comparison, and paste-converter page.
+GitHub Pages serves `docs/index.html`. The README stays in the repo; the public page is a smaller
+comparison and paste-converter page.
 
 For user-facing PRs, add one short entry to the Changelog section in `docs/index.html`. Draft the
 entry plainly so it can be edited during review.
@@ -255,7 +244,7 @@ npm run demo
 ```
 
 Open `http://127.0.0.1:8787` to run the local demo server. It is for development and browser-test
-coverage. The extension is the simple live-page capture path.
+coverage.
 
 Nothing is uploaded anywhere. The demo server only serves `demo/index.html`, `demo/overlay.js`, and
 your local `mantis.js`.
@@ -280,8 +269,8 @@ javascript:(function(){
 })();
 ```
 
-The bookmarklet path is a convenience layer for permissive pages and local development. For normal
-use, prefer the extension.
+The bookmarklet path is a convenience layer for permissive pages and local development. Strict CSP
+sites may block bookmarklet injection.
 
 By default, `Mantis.run()` does not upload anything; it copies Markdown locally or shows an in-page
 copy panel. To send captures to an agent or local service, configure a destination:
@@ -323,18 +312,16 @@ Mantis keeps the model or OCR dependency in your stack, then handles structure, 
 hashes, warnings, and frontmatter. Screenshot captures set `captureMode: "image"` and `imageCount`,
 so agents can distinguish OCR-derived context from live DOM captures.
 
-This API is meant for a separate tool, not the browser extension. The macOS helper in
-`helpers/macos-screen-capture` binds `Cmd+Shift+M`, calls `screencapture`, runs Apple Vision locally,
-saves the image and Markdown as files, and copies the Markdown to the clipboard. Mantis handles the
-final normalization step.
+This API is meant for separate tools. The macOS helper in `helpers/macos-screen-capture` binds
+`Cmd+Shift+M`, calls `screencapture`, runs Apple Vision locally, saves the image and Markdown as
+files, and copies the Markdown to the clipboard. Mantis handles the final normalization step.
 
 ```sh
 cd helpers/macos-screen-capture
 swift run mantis-screen-capture
 ```
 
-The helper is versioned separately from the browser extension. The current helper version is
-`0.1.0`; the browser extension version remains the value in `manifest.json`.
+The helper is versioned separately from the library. The current helper version is `0.1.0`.
 
 ## Development
 
