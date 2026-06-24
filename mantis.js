@@ -458,6 +458,76 @@
     return out;
   }
 
+  var IMAGE_CHROME = /avatar|profile|default[-_\s]?(dark|avatar|user)?|icon|logo|badge|sprite|tracking|pixel|spacer|transparent|share|social|follow|subscribe|like|reaction|comment|reply|toolbar|button|powered\s+by|linkedin|facebook|twitter|instagram|x\s+avatar/i;
+  var IMAGE_CONTENT = /figure|hero|image|photo|chart|diagram|graph|illustration|screenshot|cover|media|caption|content|article/i;
+
+  function numericAttr(el, name) {
+    var value = attr(el, name);
+    var m = /^\s*(\d{1,5})/.exec(value);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  function styleDimension(el, name) {
+    var style = attr(el, "style");
+    var re = new RegExp("(?:^|;)\\s*" + name + "\\s*:\\s*(\\d{1,5})px", "i");
+    var m = re.exec(style);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  function urlDimension(src, key) {
+    var re = new RegExp("(?:^|[,_?&])" + key + "[_=](\\d{1,5})(?:\\D|$)", "i");
+    var m = re.exec(src || "");
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  function renderedDimension(el, key) {
+    try {
+      var natural = key === "width" ? el.naturalWidth : el.naturalHeight;
+      var client = key === "width" ? el.clientWidth : el.clientHeight;
+      var rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+      var box = rect ? (key === "width" ? rect.width : rect.height) : 0;
+      return Math.round(natural || client || box || 0);
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function imageSize(el, src) {
+    return {
+      width: numericAttr(el, "width") || styleDimension(el, "width") || urlDimension(src, "w") || renderedDimension(el, "width"),
+      height: numericAttr(el, "height") || styleDimension(el, "height") || urlDimension(src, "h") || renderedDimension(el, "height")
+    };
+  }
+
+  function ancestorImageSignal(el, stopAt) {
+    var out = "";
+    for (var n = el; n && n !== stopAt; n = n.parentElement) {
+      out += " " + n.tagName + " " + signature(n);
+    }
+    return out;
+  }
+
+  function insideImageContent(el, stopAt) {
+    for (var n = el; n && n !== stopAt; n = n.parentElement) {
+      if (/^(FIGURE|PICTURE)$/.test(n.tagName)) return true;
+    }
+    return false;
+  }
+
+  function contentImage(el, src, scope) {
+    var sig = ancestorImageSignal(el, scope) + " " + attr(el, "alt") + " " + attr(el, "title") + " " + src;
+    var size = imageSize(el, src);
+    var knownSize = !!(size.width && size.height);
+    var small = knownSize && (size.width <= 120 && size.height <= 120 || size.width * size.height <= 12000);
+    var contentSized = size.width >= 300 || size.height >= 250;
+    var inContent = insideImageContent(el, scope) || IMAGE_CONTENT.test(sig);
+    if (/data:image\/(?:gif|png);base64/i.test(src) && small) return false;
+    if (IMAGE_CHROME.test(sig) && (small || !contentSized)) return false;
+    if (/\.svg(?:[?#]|$)/i.test(src) && !inContent) return false;
+    if (small && !inContent) return false;
+    return true;
+  }
+
   function imagesFrom(scope, doc) {
     var out = [];
     var seen = {};
@@ -467,6 +537,7 @@
       if (hidden(el) || flagged(el, scope)) continue;
       var src = absoluteUrl(doc, attr(el, "src") || attr(el, "data-src"));
       if (!src || seen[src]) continue;
+      if (!contentImage(el, src, scope)) continue;
       seen[src] = true;
       out.push({
         object: "image",
