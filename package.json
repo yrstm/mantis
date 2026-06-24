@@ -1,6 +1,6 @@
 {
   "name": "@yrstm/mantis",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Capture rendered web pages as structured JSON and clean Markdown for agents. Zero runtime dependencies, single file extraction core.",
   "main": "mantis.js",
   "types": "mantis.d.ts",

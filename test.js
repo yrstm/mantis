@@ -441,6 +441,37 @@ test("renders inline markdown with minimal escaping", () => {
   assert.ok(richMd.includes("\\[brackets\\]"));
   assert.ok(richMd.includes("1.5 numbers survive. Plain sentences stay unescaped."));
 });
+test("renders leading emphasis without ambiguous list markers", () => {
+  const article = {
+    title: "Image Credits",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "Heading image: Test Painting",
+        runs: [{ type: "em", text: "Heading image: Test Painting" }]
+      },
+      {
+        type: "paragraph",
+        text: "Bold lead",
+        runs: [{ type: "strong", text: "Bold lead" }]
+      },
+      {
+        type: "paragraph",
+        text: "Normal then emphasis",
+        runs: [
+          { type: "text", text: "Normal " },
+          { type: "em", text: "then emphasis" }
+        ]
+      }
+    ]
+  };
+  const md = Mantis.toMarkdown(article);
+  assert.ok(md.includes("_Heading image: Test Painting_"));
+  assert.ok(md.includes("__Bold lead__"));
+  assert.ok(md.includes("Normal *then emphasis*"));
+  assert.ok(!md.includes("\n*Heading image"));
+  assert.ok(!md.includes("\n**Bold lead"));
+});
 test("keeps heading levels four through six", () => {
   assert.ok(rich.blocks.some((b) => b.type === "heading" && b.level === 4));
   assert.ok(richMd.includes("#### Fourth level heading"));
@@ -580,7 +611,7 @@ test("package license metadata is Apache-2.0 with notice", () => {
   const notice = fs.readFileSync(path.join(__dirname, "NOTICE"), "utf8");
   assert.strictEqual(pkg.name, "@yrstm/mantis");
   assert.strictEqual(pkg.license, "Apache-2.0");
-  assert.strictEqual(pkg.version, "0.3.2");
+  assert.strictEqual(pkg.version, "0.3.3");
   assert.ok(pkg.files.includes("LICENSE"));
   assert.ok(pkg.files.includes("NOTICE"));
   assert.ok(license.includes("Apache License"));
