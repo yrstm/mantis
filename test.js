@@ -574,6 +574,21 @@ test("macOS screenshot helper package is documented and versioned", () => {
   assert.ok(readme.includes("Cmd+Shift+M"));
 });
 
+test("package license metadata is Apache-2.0 with notice", () => {
+  const pkg = require("./package.json");
+  const manifest = require("./manifest.json");
+  const license = fs.readFileSync(path.join(__dirname, "LICENSE"), "utf8");
+  const notice = fs.readFileSync(path.join(__dirname, "NOTICE"), "utf8");
+  assert.strictEqual(pkg.license, "Apache-2.0");
+  assert.strictEqual(pkg.version, "0.3.1");
+  assert.strictEqual(manifest.version, pkg.version);
+  assert.ok(pkg.files.includes("LICENSE"));
+  assert.ok(pkg.files.includes("NOTICE"));
+  assert.ok(license.includes("Apache License"));
+  assert.ok(notice.includes("Mantis contributors"));
+  assert.ok(notice.includes("0.3.0 and earlier"));
+});
+
 /* ---------- extension manifest ---------- */
 test("MV3 extension manifest points at existing capture files", () => {
   const manifest = require("./manifest.json");

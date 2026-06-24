@@ -1,6 +1,6 @@
 {
   "name": "mantis",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Capture rendered web pages as structured JSON and clean Markdown for agents. Browser extension first, zero runtime dependencies, single file extraction core.",
   "main": "mantis.js",
   "types": "mantis.d.ts",
@@ -12,9 +12,10 @@
     "mantis.js",
     "llms.txt",
     "README.md",
+    "NOTICE",
     "LICENSE"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "homepage": "https://yrstm.github.io/mantis/",
   "bugs": {
     "url": "https://github.com/yrstm/mantis/issues"
