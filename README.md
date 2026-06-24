@@ -348,6 +348,14 @@ npm run perf
 `npm run test:browser` runs the demo in real Chromium. Install Playwright locally first; see
 `demo/browser-test.js`.
 
+## Contributing
+
+Contributions are accepted under Apache-2.0 unless explicitly stated otherwise. By submitting code,
+docs, tests, or other changes to this repo, you agree that your contribution may be licensed under
+Apache-2.0.
+
 ## License
 
-MIT
+Apache-2.0. See `LICENSE` and `NOTICE`.
+
+Mantis versions `0.3.0` and earlier were distributed under MIT for those copies.
