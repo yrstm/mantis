@@ -182,6 +182,25 @@
       background: #fff;
     }
     .step strong { display: block; margin-bottom: 4px; }
+    .changelog {
+      display: grid;
+      gap: 12px;
+      max-width: 780px;
+    }
+    .change {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+    .change:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .change time {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
     .score {
       display: flex;
       flex-wrap: wrap;
@@ -232,6 +251,7 @@
         <a href="#install">Install</a>
         <a href="#compare">Compare</a>
         <a href="#paste">Paste converter</a>
+        <a href="#changelog">Changelog</a>
         <a href="https://github.com/yrstm/mantis">GitHub</a>
       </nav>
     </div>
@@ -389,6 +409,27 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
     <section class="section">
       <h2>Screenshot API</h2>
       <p class="muted">The browser extension captures DOM. Screenshot capture is a separate local-helper workflow. The library API, <code>Mantis.fromImage()</code>, lets a tool pass OCR or vision output into the same Markdown pipeline without adding OCR dependencies to the extension.</p>
+    </section>
+
+    <section class="section" id="changelog">
+      <h2>Changelog</h2>
+      <div class="changelog">
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>macOS screen capture helper</h3>
+          <p class="muted">Added an optional menu bar helper that captures a selected screenshot, runs Apple Vision locally, normalizes OCR through Mantis, saves PNG and Markdown files, and copies Markdown to the clipboard.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>Public GitHub Pages demo</h3>
+          <p class="muted">Added this public page with extension install notes, a normal-copy comparison, a paste converter, and a short screenshot API note.</p>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <h3>Extension-first repo shape</h3>
+          <p class="muted">Made the browser extension the primary live-page capture path and kept screenshot capture as a separate local-helper workflow.</p>
+        </article>
+      </div>
     </section>
   </main>
 
