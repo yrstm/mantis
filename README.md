@@ -117,6 +117,21 @@ const article = Mantis.fromHTML(html, {
 });
 ```
 
+Screenshots or image captures, with your own OCR or vision function:
+
+```js
+const article = await Mantis.fromImage(imageData, async (images, context) => {
+  // Call Claude, OpenAI, Apple Vision, Tesseract, or an internal OCR service here.
+  // Return Markdown, plain text, HTML, an article-like object, or a full MantisArticle.
+  return await runVision(images, context.prompt);
+}, {
+  url: "https://example.com/source",
+  title: "Captured screenshot"
+});
+
+const markdown = Mantis.toMarkdown(article, { frontmatter: true, budget: "outline" });
+```
+
 `toMarkdown()` options:
 
 | Option | Values |
@@ -270,21 +285,27 @@ Relative `data-mantis-endpoint` and `data-mantis-fallback-url` values resolve ag
 URL. The POST body is JSON. `format: "bundle"` sends metadata, Markdown, and the full article;
 `"markdown"` sends metadata plus Markdown; `"article"` sends only the article object.
 
-## Screenshot-to-Markdown (planned)
+## Screenshot-to-Markdown
 
-A natural extension is the reverse: for screenshots you already have, Mantis could accept image
-data alongside a caller-supplied vision function and return the same article object as the rest of
-the API:
+For screenshots you already have, `Mantis.fromImage()` accepts one image or an array of images
+alongside a caller-supplied OCR or vision function:
 
 ```js
-// Proposed API - not yet implemented
 const article = await Mantis.fromImage(imageData, visionFn, { url });
 const markdown = Mantis.toMarkdown(article, { frontmatter: true });
 ```
 
-The vision function stays in the caller's stack, keeping Mantis dependency-free. Mantis would handle
-structure, budget, formatting, hashes, and warnings so agents receive the same shape from live DOM,
-stored HTML, or images.
+The vision function is called once as `visionFn(images, context)`. `context.prompt` asks for clean
+Markdown in reading order, with browser and OS chrome ignored. The function may return:
+
+- a Markdown or plain-text string
+- `{ markdown, text, confidence, warnings, ...metadata }`
+- `{ html }` when you also pass `DOMParser`
+- a partial or complete Mantis article object
+
+Mantis keeps the model or OCR dependency in your stack, then handles structure, budget, formatting,
+hashes, warnings, and frontmatter. Screenshot captures set `captureMode: "image"` and `imageCount`,
+so agents can distinguish OCR-derived context from live DOM captures.
 
 ## Development
 

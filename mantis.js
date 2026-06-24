@@ -13,6 +13,7 @@
  * API (no side effects unless asked):
  *   Mantis.extract(document) -> article object with text, blocks, sections, links, images, tables
  *   Mantis.fromHTML(html, opts)  -> extract() over a parsed HTML string (Node: inject a DOMParser)
+ *   Mantis.fromImage(imageOrImages, visionFn, opts) -> extract text from screenshots via caller OCR
  *   Mantis.toMarkdown(article, opts) -> Markdown string (frontmatter, images, tables, maxChars)
  *   Mantis.toHTML(article)     -> reader HTML string
  *   Mantis.run(scriptEl, opts) -> extract + copy Markdown locally, or POST to
@@ -767,6 +768,7 @@
       if (pairs[i][1]) out.push(pairs[i][0] + ": " + yamlEscape(pairs[i][1]));
     }
     if (article.selection && article.selection.text) out.push("selectionChars: " + article.selection.text.length);
+    if (article.imageCount) out.push("imageCount: " + article.imageCount);
     if (article.blocks) out.push("blockCount: " + article.blocks.length);
     if (article.citations) out.push("citationCount: " + article.citations.length);
     if (article.links) out.push("linkCount: " + article.links.length);
@@ -963,6 +965,369 @@
     var doc = new Parser().parseFromString(String(html || ""), "text/html");
     if (options.url) doc.__mantisBase = String(options.url);
     return extract(doc, options);
+  }
+
+  var IMAGE_PROMPT = [
+    "Extract the readable content from the screenshot images in reading order.",
+    "Ignore browser chrome, OS chrome, ads, navigation, cookie banners, and repeated UI.",
+    "Return clean Markdown. Preserve headings, paragraphs, lists, tables, code blocks, and labels."
+  ].join(" ");
+
+  function asArray(value) {
+    if (value === undefined || value === null) return [];
+    return Array.isArray(value) ? value : [value];
+  }
+
+  function addWarning(out, value) {
+    if (value && out.indexOf(value) === -1) out.push(value);
+  }
+
+  function splitTableRow(line) {
+    var s = String(line || "").trim();
+    if (s.charAt(0) === "|") s = s.slice(1);
+    if (s.charAt(s.length - 1) === "|") s = s.slice(0, -1);
+    if (!s) return [];
+    return s.split("|").map(function (cell) { return cell.trim(); });
+  }
+
+  function isTableSeparator(line) {
+    return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line || "");
+  }
+
+  function parseMarkdownTable(lines, start, tableIndex, sourcePrefix) {
+    if (start + 1 >= lines.length || !isTableSeparator(lines[start + 1])) return null;
+    var headers = splitTableRow(lines[start]);
+    if (!headers.length) return null;
+    var rows = [];
+    var i = start + 2;
+    for (; i < lines.length; i++) {
+      if (!/\|/.test(lines[i]) || !String(lines[i]).trim()) break;
+      rows.push(splitTableRow(lines[i]));
+    }
+    return {
+      next: i,
+      table: {
+        object: "table",
+        caption: "",
+        headers: headers,
+        rows: rows,
+        source: { selector: sourcePrefix + " table:nth-of-type(" + tableIndex + ")" }
+      }
+    };
+  }
+
+  function runsFromMarkdown(text) {
+    var runs = [];
+    var plain = "";
+    var formatted = false;
+    var i = 0;
+    function push(type, value, href) {
+      if (!value) return;
+      plain += value;
+      var last = runs.length ? runs[runs.length - 1] : null;
+      if (last && last.type === type && (last.href || "") === (href || "")) {
+        last.text += value;
+      } else {
+        var run = { type: type, text: value };
+        if (href) run.href = href;
+        runs.push(run);
+      }
+    }
+    while (i < text.length) {
+      var rest = text.slice(i);
+      var link = /^\[([^\]]+)\]\(([^)\s]+)\)/.exec(rest);
+      if (link) {
+        formatted = true;
+        push("link", link[1], link[2]);
+        i += link[0].length;
+        continue;
+      }
+      var code = /^`([^`]+)`/.exec(rest);
+      if (code) {
+        formatted = true;
+        push("code", code[1]);
+        i += code[0].length;
+        continue;
+      }
+      var strong = /^\*\*([^*]+)\*\*/.exec(rest);
+      if (strong) {
+        formatted = true;
+        push("strong", strong[1]);
+        i += strong[0].length;
+        continue;
+      }
+      var em = /^\*([^*]+)\*/.exec(rest);
+      if (em) {
+        formatted = true;
+        push("em", em[1]);
+        i += em[0].length;
+        continue;
+      }
+      push("text", text.charAt(i));
+      i++;
+    }
+    return { text: plain, runs: runs, formatted: formatted };
+  }
+
+  function blocksAndTablesFromMarkdown(markdown, sourcePrefix) {
+    var lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+    var blocks = [];
+    var tables = [];
+    var paragraph = [];
+    var inCode = false;
+    var codeLang = "";
+    var codeLines = [];
+    sourcePrefix = sourcePrefix || "image";
+
+    function source(tag) {
+      return { selector: sourcePrefix + " " + tag + ":nth-of-type(" + (blocks.length + 1) + ")", index: blocks.length };
+    }
+    function pushBlock(type, tag, level, text, extra) {
+      text = String(text || "").replace(/\s+$/g, "");
+      if (!text) return;
+      var inline = type === "code" ? null : runsFromMarkdown(text);
+      var block = {
+        object: "block",
+        type: type,
+        tag: tag,
+        level: level || 0,
+        text: (inline ? inline.text : text).slice(0, 8000),
+        links: [],
+        source: source(tag.toLowerCase())
+      };
+      if (inline && inline.formatted) {
+        block.runs = inline.runs;
+        block.links = inline.runs.filter(function (run) { return run.type === "link"; }).map(function (run) {
+          return { text: run.text, href: run.href };
+        });
+      }
+      if (extra) {
+        for (var k in extra) block[k] = extra[k];
+      }
+      blocks.push(block);
+    }
+    function flushParagraph() {
+      if (!paragraph.length) return;
+      pushBlock("paragraph", "P", 0, paragraph.join(" ").replace(/\s+/g, " ").trim());
+      paragraph = [];
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      var raw = lines[i];
+      var line = raw.trim();
+      var fence = /^```([\w#+-]*)\s*$/.exec(line);
+      if (fence) {
+        if (inCode) {
+          pushBlock("code", "PRE", 0, codeLines.join("\n"), codeLang ? { language: codeLang } : null);
+          inCode = false;
+          codeLang = "";
+          codeLines = [];
+        } else {
+          flushParagraph();
+          inCode = true;
+          codeLang = fence[1] || "";
+        }
+        continue;
+      }
+      if (inCode) {
+        codeLines.push(raw);
+        continue;
+      }
+      if (!line) {
+        flushParagraph();
+        continue;
+      }
+      var table = parseMarkdownTable(lines, i, tables.length + 1, sourcePrefix);
+      if (table) {
+        flushParagraph();
+        tables.push(table.table);
+        i = table.next - 1;
+        continue;
+      }
+      var heading = /^(#{1,6})\s+(.+)$/.exec(line);
+      if (heading) {
+        flushParagraph();
+        pushBlock("heading", "H" + heading[1].length, heading[1].length, heading[2].trim());
+        continue;
+      }
+      var quote = /^>\s?(.*)$/.exec(line);
+      if (quote) {
+        flushParagraph();
+        var q = [quote[1]];
+        while (i + 1 < lines.length) {
+          var nextQuote = /^>\s?(.*)$/.exec(lines[i + 1].trim());
+          if (!nextQuote) break;
+          q.push(nextQuote[1]);
+          i++;
+        }
+        pushBlock("blockquote", "BLOCKQUOTE", 0, q.join(" ").replace(/\s+/g, " ").trim());
+        continue;
+      }
+      var bullet = /^(\s*)([-+*])\s+(.+)$/.exec(raw);
+      var ordered = /^(\s*)(\d+)[.)]\s+(.+)$/.exec(raw);
+      if (bullet || ordered) {
+        flushParagraph();
+        var depth = Math.floor(((bullet ? bullet[1] : ordered[1]) || "").replace(/\t/g, "    ").length / 2);
+        var index = ordered ? parseInt(ordered[2], 10) : 1;
+        pushBlock("list_item", "LI", 0, (bullet ? bullet[3] : ordered[3]).trim(), {
+          list: { depth: depth, ordered: !!ordered, index: isNaN(index) ? 1 : index }
+        });
+        continue;
+      }
+      paragraph.push(line);
+    }
+    if (inCode) pushBlock("code", "PRE", 0, codeLines.join("\n"), codeLang ? { language: codeLang } : null);
+    flushParagraph();
+    return { blocks: blocks, tables: tables };
+  }
+
+  function normalizeVisionBlock(block, index, sourcePrefix) {
+    var type = block && block.type || "paragraph";
+    var tag = block && block.tag || (type === "heading" ? "H" + (block.level || 2) :
+      type === "blockquote" ? "BLOCKQUOTE" : type === "code" ? "PRE" : type === "list_item" ? "LI" : "P");
+    var out = {
+      object: "block",
+      type: type,
+      tag: tag,
+      level: block && block.level || (/^H[1-6]$/.test(tag) ? parseInt(tag.slice(1), 10) : 0),
+      text: String(block && block.text || "").slice(0, 8000),
+      links: block && block.links || [],
+      source: block && block.source || { selector: sourcePrefix + " block:nth-of-type(" + (index + 1) + ")", index: index }
+    };
+    if (block && block.runs) out.runs = block.runs;
+    if (block && block.list) out.list = block.list;
+    if (block && block.language) out.language = block.language;
+    return out;
+  }
+
+  function normalizeVisionTable(table, index, sourcePrefix) {
+    return {
+      object: "table",
+      caption: table && table.caption || "",
+      headers: table && table.headers || [],
+      rows: table && table.rows || [],
+      source: table && table.source || { selector: sourcePrefix + " table:nth-of-type(" + (index + 1) + ")" }
+    };
+  }
+
+  function firstHeading(blocks) {
+    for (var i = 0; i < blocks.length; i++) {
+      if (blocks[i].type === "heading" && blocks[i].text) return blocks[i].text;
+    }
+    return "";
+  }
+
+  function linksFromBlocksForImage(blocks) {
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < blocks.length; i++) {
+      var links = blocks[i].links || [];
+      for (var j = 0; j < links.length; j++) {
+        var href = links[j].href;
+        if (!href || seen[href]) continue;
+        seen[href] = true;
+        out.push({
+          object: "link",
+          text: links[j].text || href,
+          href: href,
+          rel: "",
+          source: blocks[i].source || { selector: "image block:nth-of-type(" + (i + 1) + ")" }
+        });
+      }
+    }
+    return out;
+  }
+
+  function articleFromImageResult(result, images, options) {
+    options = options || {};
+    result = result || "";
+    if (typeof result === "string") result = { markdown: result };
+    if (result.object === "article") {
+      result.captureMode = result.captureMode || "image";
+      result.imageCount = result.imageCount || images.length;
+      return result;
+    }
+    if (result.html) {
+      if (!options.DOMParser) throw new Error("Mantis.fromImage needs options.DOMParser when visionFn returns HTML");
+      var fromHtml = fromHTML(result.html, options);
+      fromHtml.captureMode = "image";
+      fromHtml.imageCount = images.length;
+      return fromHtml;
+    }
+
+    var sourcePrefix = images.length > 1 ? "images" : "image";
+    var raw = result.markdown || result.text || "";
+    var parsed = blocksAndTablesFromMarkdown(raw, sourcePrefix);
+    var blocks = result.blocks ? result.blocks.map(function (block, i) {
+      return normalizeVisionBlock(block, i, sourcePrefix);
+    }) : parsed.blocks;
+    var tables = result.tables ? result.tables.map(function (table, i) {
+      return normalizeVisionTable(table, i, sourcePrefix);
+    }) : parsed.tables;
+    var paragraphs = paragraphsFromBlocks(blocks);
+    var confidenceValue = typeof result.confidence === "number" ? result.confidence : (blocks.length > 1 ? 0.7 : blocks.length ? 0.45 : 0);
+    var article = {
+      object: "article",
+      captureMode: "image",
+      imageCount: images.length,
+      title: options.title || result.title || firstHeading(blocks) || "",
+      byline: options.byline || result.byline || "",
+      hero: options.hero || result.hero || "",
+      url: options.url || result.url || "",
+      canonicalUrl: options.canonicalUrl || result.canonicalUrl || options.url || result.url || "",
+      siteName: options.siteName || result.siteName || "",
+      publishedAt: options.publishedAt || result.publishedAt || "",
+      modifiedAt: options.modifiedAt || result.modifiedAt || "",
+      language: options.language || result.language || "",
+      text: paragraphs.join("\n\n"),
+      paragraphs: paragraphs,
+      blocks: blocks,
+      sections: sectionsFromBlocks(blocks),
+      citations: citationsFromBlocks(blocks),
+      links: result.links || linksFromBlocksForImage(blocks),
+      images: result.images || [],
+      tables: tables,
+      selection: null,
+      capturedAt: new Date().toISOString(),
+      contentType: options.contentType || result.contentType || "unknown",
+      confidence: Math.round(Math.max(0, Math.min(0.99, confidenceValue)) * 100) / 100,
+      diagnostics: {
+        scopeTag: "IMAGE",
+        linkDensity: 0,
+        score: Math.round(String(raw || paragraphs.join("\n\n")).length),
+        nextScore: 0,
+        paragraphCount: paragraphs.length
+      }
+    };
+    article.textHash = hashString(article.text);
+    article.contentHash = hashString(JSON.stringify({
+      title: article.title,
+      byline: article.byline,
+      url: article.canonicalUrl || article.url,
+      text: article.text,
+      tables: article.tables
+    }));
+    article.warnings = asArray(result.warnings);
+    if (!article.blocks.length) addWarning(article.warnings, "empty_content");
+    else if (article.blocks.length < 2) addWarning(article.warnings, "short_content");
+    if (article.confidence < 0.45) addWarning(article.warnings, "low_confidence");
+    article.status = statusFrom(article);
+    return article;
+  }
+
+  function fromImage(imageOrImages, visionFn, options) {
+    options = options || {};
+    if (typeof visionFn !== "function") throw new Error("Mantis.fromImage needs a visionFn that returns text, Markdown, HTML, or an article object");
+    var images = asArray(imageOrImages);
+    if (!images.length) throw new Error("Mantis.fromImage needs at least one image");
+    return Promise.resolve(visionFn(images, {
+      prompt: options.prompt || IMAGE_PROMPT,
+      url: options.url || "",
+      title: options.title || "",
+      imageCount: images.length
+    })).then(function (result) {
+      return articleFromImageResult(result, images, options);
+    });
   }
 
   /* ---------- the bookmarklet flow: capture, deliver, confirm ---------- */
@@ -1176,5 +1541,5 @@
     }
   }
 
-  return { extract: extract, fromHTML: fromHTML, toMarkdown: toMarkdown, toHTML: toHTML, run: run };
+  return { extract: extract, fromHTML: fromHTML, fromImage: fromImage, toMarkdown: toMarkdown, toHTML: toHTML, run: run };
 });
