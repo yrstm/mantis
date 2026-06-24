@@ -528,6 +528,9 @@ test("fromHTML extracts from an HTML string with an injected DOMParser", () => {
   assert.ok(article.paragraphs.length >= 2);
   assert.ok(Mantis.toMarkdown(article).includes("[relative docs link](https://example.com/docs)"));
 });
+test("fromImage requires at least one image", () => {
+  assert.throws(() => Mantis.fromImage([], () => ""), /at least one image/);
+});
 
 /* ---------- extension manifest ---------- */
 test("MV3 extension manifest points at existing capture files", () => {
@@ -567,6 +570,60 @@ async function runCase(fetchImpl, configureScript) {
 }
 
 (async () => {
+  const imageArticle = await Mantis.fromImage(["shot-1.png", "shot-2.png"], (images, context) => {
+    assert.strictEqual(images.length, 2);
+    assert.ok(context.prompt.includes("reading order"));
+    assert.strictEqual(context.url, "https://example.com/screenshot-source");
+    return {
+      markdown: `# Screenshot Guide
+
+The first screenshot paragraph explains the captured interface in reading order.
+
+Use the [source docs](https://example.com/source) and the \`billing:read\` scope from the image.
+
+## Steps
+
+- Open the reports page.
+- Export the fees report.
+
+| Column | Meaning |
+| --- | --- |
+| suite | Product suite from the screenshot |
+| amount | Fee amount shown in the image |`,
+      confidence: 0.82,
+      contentType: "docs"
+    };
+  }, { url: "https://example.com/screenshot-source", title: "Screenshot Guide" });
+  test("fromImage converts OCR Markdown into an article object", () => {
+    assert.strictEqual(imageArticle.object, "article");
+    assert.strictEqual(imageArticle.captureMode, "image");
+    assert.strictEqual(imageArticle.imageCount, 2);
+    assert.strictEqual(imageArticle.url, "https://example.com/screenshot-source");
+    assert.strictEqual(imageArticle.contentType, "docs");
+    assert.strictEqual(imageArticle.status, "completed");
+    assert.strictEqual(imageArticle.confidence, 0.82);
+    assert.ok(imageArticle.text.includes("first screenshot paragraph"));
+    assert.ok(imageArticle.links.some((link) => link.href === "https://example.com/source"));
+    assert.ok(imageArticle.blocks.some((b) => b.type === "list_item" && b.text.includes("Export")));
+    assert.deepStrictEqual(imageArticle.tables[0].headers, ["Column", "Meaning"]);
+    assert.deepStrictEqual(imageArticle.tables[0].rows[1], ["amount", "Fee amount shown in the image"]);
+  });
+  test("fromImage Markdown frontmatter marks image capture", () => {
+    const md = Mantis.toMarkdown(imageArticle, { frontmatter: true, tables: true });
+    assert.ok(md.includes('captureMode: "image"'));
+    assert.ok(md.includes("imageCount: 2"));
+    assert.ok(md.includes("[source docs](https://example.com/source)"));
+    assert.ok(md.includes("`billing:read`"));
+    assert.ok(md.includes("| Column | Meaning |"));
+  });
+
+  const imageTextArticle = await Mantis.fromImage("shot.png", () =>
+    "Only one short OCR line from the screenshot.", { title: "Short Image" });
+  test("fromImage reports short OCR captures as partial", () => {
+    assert.strictEqual(imageTextArticle.status, "partial");
+    assert.ok(imageTextArticle.warnings.includes("short_content"));
+  });
+
   const ok = await runCase((out) => (u, o) => {
     assert.strictEqual(out.posted, null, "double-click guard failed");
     out.posted = { url: u, payload: JSON.parse(o.body) };

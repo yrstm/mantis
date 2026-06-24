@@ -100,6 +100,60 @@ export interface MantisFromHTMLOptions extends MantisExtractOptions {
   DOMParser?: MantisDOMParserLike;
 }
 
+export interface MantisFromImageOptions {
+  url?: string;
+  canonicalUrl?: string;
+  title?: string;
+  byline?: string;
+  siteName?: string;
+  hero?: string;
+  language?: string;
+  publishedAt?: string;
+  modifiedAt?: string;
+  contentType?: MantisArticle["contentType"];
+  prompt?: string;
+  DOMParser?: MantisDOMParserLike;
+}
+
+export interface MantisImageVisionContext {
+  prompt: string;
+  url: string;
+  title: string;
+  imageCount: number;
+}
+
+export type MantisImageInput = unknown;
+
+export type MantisImageVisionResult =
+  | string
+  | Partial<MantisArticle>
+  | {
+      markdown?: string;
+      text?: string;
+      html?: string;
+      title?: string;
+      byline?: string;
+      siteName?: string;
+      hero?: string;
+      url?: string;
+      canonicalUrl?: string;
+      language?: string;
+      publishedAt?: string;
+      modifiedAt?: string;
+      contentType?: MantisArticle["contentType"];
+      confidence?: number;
+      warnings?: string[];
+      blocks?: MantisBlock[];
+      links?: MantisLink[];
+      images?: MantisImage[];
+      tables?: MantisTable[];
+    };
+
+export type MantisImageVisionFn = (
+  images: MantisImageInput[],
+  context: MantisImageVisionContext
+) => MantisImageVisionResult | Promise<MantisImageVisionResult>;
+
 export interface MantisMarkdownOptions {
   frontmatter?: boolean;
   images?: "omit" | "alt" | "links";
@@ -119,7 +173,8 @@ export interface MantisRunOptions {
 
 export interface MantisArticle {
   object: "article";
-  captureMode?: "page" | "selection";
+  captureMode?: "page" | "selection" | "image";
+  imageCount?: number;
   title: string;
   byline: string;
   hero: string;
@@ -150,6 +205,11 @@ export interface MantisArticle {
 
 export function extract(doc: Document, options?: MantisExtractOptions): MantisArticle;
 export function fromHTML(html: string, options?: MantisFromHTMLOptions): MantisArticle;
+export function fromImage(
+  imageOrImages: MantisImageInput | MantisImageInput[],
+  visionFn: MantisImageVisionFn,
+  options?: MantisFromImageOptions
+): Promise<MantisArticle>;
 export function toMarkdown(article: Partial<MantisArticle>, options?: MantisMarkdownOptions): string;
 export function toHTML(article: Partial<MantisArticle>): string;
 export function run(options?: MantisRunOptions): void;

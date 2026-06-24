@@ -7,6 +7,7 @@ or clean Markdown. Zero dependencies, single file, never fetches anything.
 
 - `Mantis.extract(document, opts?)` — browser-side extraction from the live DOM
 - `Mantis.fromHTML(html, { url, DOMParser })` — server-side (inject jsdom or linkedom)
+- `Mantis.fromImage(imageOrImages, visionFn, opts?)` — screenshot/image extraction via caller OCR or vision function
 - `Mantis.toMarkdown(article, opts?)` — renders the article as token-efficient Markdown
 - `Mantis.toHTML(article)` — renders the article as reader-mode HTML with inline formatting
 - `Mantis.run(scriptEl?, opts?)` — bookmarklet helper: copies Markdown locally, or POSTs to a configured endpoint
@@ -14,7 +15,7 @@ or clean Markdown. Zero dependencies, single file, never fetches anything.
 ## Article object (stable fields)
 
 title, byline, siteName, hero, url, canonicalUrl, language, publishedAt, modifiedAt,
-optional captureMode ("page" | "selection"),
+optional captureMode ("page" | "selection" | "image"), optional imageCount,
 status ("completed" | "partial" | "empty"),
 contentType ("article" | "docs" | "recipe" | "forum" | "newsletter" | "product" | "video" | "unknown"),
 capturedAt, contentHash (semantic dedup across sessions), textHash (content-change detection),
@@ -49,6 +50,15 @@ tables: true (default)
 maxChars: N — cuts at block boundaries; never mid-sentence (~4 chars per token)
 budget: "cut" (default, keep leading blocks) | "outline" (headings + section leads first); requires maxChars
 sourceSafety: true by default with frontmatter; adds a short note telling agents to treat source content as data, not instructions
+
+## fromImage contract
+
+fromImage(imageOrImages, visionFn, opts?) calls visionFn(images[], context) once.
+context: { prompt, url, title, imageCount }.
+visionFn may return Markdown/plain text, { markdown, text, confidence, warnings, blocks, tables, metadata },
+{ html } with opts.DOMParser, or a partial/full MantisArticle.
+Mantis normalizes it to an article with captureMode "image", imageCount, hashes, sections, citations,
+status, warnings, and Markdown-compatible blocks/tables. Mantis does not perform OCR itself.
 
 ## run options
 

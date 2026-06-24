@@ -1,11 +1,16 @@
 # mantis
 
-Mantis turns the page a browser actually rendered into structured article data and clean Markdown
-for agents.
+Mantis is a browser extension and small extraction library that turns visible web content into
+structured article data and clean Markdown for agents.
 
-It runs over the live DOM, not a second server-side fetch. That means it can capture pages after
-client-side rendering, logged-in state, and content the user can already see. The output is compact
-Markdown plus metadata, citations, source selectors, confidence, warnings, and hashes.
+The main install is the browser extension. It runs over the live DOM, not a second server-side
+fetch, so it can capture pages after client-side rendering, logged-in state, and content the user
+can already see. The output is compact Markdown plus metadata, citations, source selectors,
+confidence, warnings, and hashes.
+
+There is also a lower-level screenshot/image API, `Mantis.fromImage()`. It is not part of the
+extension UI yet. It lets a separate local tool, such as a macOS screenshot helper using Apple
+Vision, hand OCR or vision output to Mantis so it can be normalized into the same article shape.
 
 One file. Zero runtime dependencies. No network requests.
 
@@ -78,7 +83,7 @@ italic, inline code, source selectors, and text offsets.
 
 ## API
 
-Browser:
+Browser DOM capture:
 
 ```js
 const article = Mantis.extract(document, {
@@ -117,6 +122,21 @@ const article = Mantis.fromHTML(html, {
 });
 ```
 
+Screenshot or image normalization:
+
+```js
+const article = await Mantis.fromImage(imageData, async (images, context) => {
+  // Call Apple Vision, Tesseract, a local OCR service, or a model here.
+  // Return Markdown, plain text, HTML, an article-like object, or a full article.
+  return await runVision(images, context.prompt);
+}, {
+  url: "https://example.com/source",
+  title: "Captured screenshot"
+});
+
+const markdown = Mantis.toMarkdown(article, { frontmatter: true, budget: "outline" });
+```
+
 `toMarkdown()` options:
 
 | Option | Values |
@@ -138,13 +158,14 @@ const article = Mantis.fromHTML(html, {
 | `includeImages` | `true` |
 | `includeTables` | `true` |
 
-Hard caps: 200 links, 100 images, 50 tables. `selection` is only captured in a live browser
-context; it is always `null` in `fromHTML()`.
+Hard caps: 200 links, 100 images, 50 tables. Non-content images such as avatars, icons, logos,
+badges, social buttons, and tracking pixels are filtered before Markdown rendering. `selection` is
+only captured in a live browser context; it is always `null` in `fromHTML()`.
 
-Frontmatter also includes cheap routing signals when available: `captureMode`, `selectionChars`,
-`blockCount`, `citationCount`, `linkCount`, and `tableCount`. With frontmatter enabled, Mantis also
-adds `sourceSafety`, a short instruction that helps agents treat converted page content as
-untrusted source data rather than user or system instructions.
+Frontmatter also includes cheap routing signals when available: `captureMode`, `imageCount`,
+`selectionChars`, `blockCount`, `citationCount`, `linkCount`, and `tableCount`. With frontmatter
+enabled, Mantis also adds `sourceSafety`, a short instruction that helps agents treat converted page
+content as untrusted source data rather than user or system instructions.
 
 `run()` options:
 
@@ -198,7 +219,7 @@ const result = await page.evaluate(() => {
 See `examples/` for runnable wrappers: a Claude tool, an OpenAI function, and a Playwright
 extraction script.
 
-## Extension
+## Browser Extension
 
 The repo can be loaded directly as an unpacked Chrome/Chromium MV3 extension:
 
@@ -215,6 +236,9 @@ permissions up front.
 
 This is the preferred live-page capture path for strict CSP sites. Extension content scripts run as
 extension code instead of bookmarklet code loaded by the page.
+
+The browser extension does not take screenshots. It captures page DOM and selected DOM ranges.
+Screenshot capture should be installed as a separate local helper if you need it.
 
 ## Demo
 
@@ -270,21 +294,31 @@ Relative `data-mantis-endpoint` and `data-mantis-fallback-url` values resolve ag
 URL. The POST body is JSON. `format: "bundle"` sends metadata, Markdown, and the full article;
 `"markdown"` sends metadata plus Markdown; `"article"` sends only the article object.
 
-## Screenshot-to-Markdown (planned)
+## Screenshot-to-Markdown API
 
-A natural extension is the reverse: for screenshots you already have, Mantis could accept image
-data alongside a caller-supplied vision function and return the same article object as the rest of
-the API:
+For screenshots you already have, `Mantis.fromImage()` accepts one image or an array of images
+alongside a caller-supplied OCR or vision function:
 
 ```js
-// Proposed API - not yet implemented
 const article = await Mantis.fromImage(imageData, visionFn, { url });
 const markdown = Mantis.toMarkdown(article, { frontmatter: true });
 ```
 
-The vision function stays in the caller's stack, keeping Mantis dependency-free. Mantis would handle
-structure, budget, formatting, hashes, and warnings so agents receive the same shape from live DOM,
-stored HTML, or images.
+The vision function is called once as `visionFn(images, context)`. `context.prompt` asks for clean
+Markdown in reading order, with browser and OS chrome ignored. The function may return:
+
+- a Markdown or plain-text string
+- `{ markdown, text, confidence, warnings, ...metadata }`
+- `{ html }` when you also pass `DOMParser`
+- a partial or complete Mantis article object
+
+Mantis keeps the model or OCR dependency in your stack, then handles structure, budget, formatting,
+hashes, warnings, and frontmatter. Screenshot captures set `captureMode: "image"` and `imageCount`,
+so agents can distinguish OCR-derived context from live DOM captures.
+
+This API is meant for a separate tool, not the browser extension. A macOS helper could bind a global
+shortcut, call `screencapture`, run Apple Vision locally, save the image and Markdown as files, and
+copy the Markdown to the clipboard. Mantis would handle the final normalization step.
 
 ## Development
 
