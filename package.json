@@ -1,7 +1,7 @@
 {
   "name": "mantis",
   "version": "0.3.0",
-  "description": "Capture exactly what the user sees and turn any page into structured JSON or clean Markdown. Built for read-later and bookmarking apps, and for AI agents that need token-efficient input. Readability-style, zero dependencies, single file.",
+  "description": "Capture rendered web pages as structured JSON and clean Markdown for agents. Browser extension first, zero runtime dependencies, single file extraction core.",
   "main": "mantis.js",
   "types": "mantis.d.ts",
   "files": [
@@ -15,7 +15,7 @@
     "LICENSE"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/yrstm/mantis#readme",
+  "homepage": "https://yrstm.github.io/mantis/",
   "bugs": {
     "url": "https://github.com/yrstm/mantis/issues"
   },
@@ -31,9 +31,9 @@
   "keywords": [
     "readability",
     "article-extraction",
-    "bookmarklet",
-    "read-later",
-    "archive",
+    "browser-extension",
+    "web-extension",
+    "dom-extraction",
     "client-side",
     "content-script",
     "markdown",
