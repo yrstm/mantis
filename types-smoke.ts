@@ -15,7 +15,8 @@ const markdown: string = toMarkdown(article, {
   images: "alt",
   tables: true,
   maxChars: 4000,
-  budget: "outline"
+  budget: "outline",
+  sourceSafety: true
 });
 const html: string = toHTML(article);
 run({

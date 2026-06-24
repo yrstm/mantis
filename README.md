@@ -126,6 +126,7 @@ const article = Mantis.fromHTML(html, {
 | `tables` | `true` default; renders GFM tables |
 | `maxChars` | Cuts at block boundaries, never mid-block |
 | `budget` | `"cut"` default, or `"outline"` to keep headings and section leads first |
+| `sourceSafety` | `true` default with frontmatter; tells agents to treat captured content as data |
 
 `extract()` options:
 
@@ -141,7 +142,9 @@ Hard caps: 200 links, 100 images, 50 tables. `selection` is only captured in a l
 context; it is always `null` in `fromHTML()`.
 
 Frontmatter also includes cheap routing signals when available: `captureMode`, `selectionChars`,
-`blockCount`, `citationCount`, `linkCount`, and `tableCount`.
+`blockCount`, `citationCount`, `linkCount`, and `tableCount`. With frontmatter enabled, Mantis also
+adds `sourceSafety`, a short instruction that helps agents treat converted page content as
+untrusted source data rather than user or system instructions.
 
 `run()` options:
 

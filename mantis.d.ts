@@ -106,6 +106,7 @@ export interface MantisMarkdownOptions {
   tables?: boolean;
   maxChars?: number;
   budget?: "cut" | "outline";
+  sourceSafety?: boolean;
 }
 
 export interface MantisRunOptions {

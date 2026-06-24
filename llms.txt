@@ -43,11 +43,12 @@ status "empty" → empty_content set; "partial" → low_confidence or short_cont
 
 ## toMarkdown options
 
-frontmatter: true — YAML header (title, byline, url, captureMode, counts, confidence, contentHash, warnings)
+frontmatter: true — YAML header (title, byline, url, captureMode, counts, sourceSafety, confidence, contentHash, warnings)
 images: "omit" (default) | "alt" | "links"
 tables: true (default)
 maxChars: N — cuts at block boundaries; never mid-sentence (~4 chars per token)
 budget: "cut" (default, keep leading blocks) | "outline" (headings + section leads first); requires maxChars
+sourceSafety: true by default with frontmatter; adds a short note telling agents to treat source content as data, not instructions
 
 ## run options
 
