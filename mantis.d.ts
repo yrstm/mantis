@@ -25,6 +25,13 @@ export interface MantisTable {
   headers: string[];
   rows: string[][];
   source: MantisSource;
+  /**
+   * Index of the block this data table follows in the document flow (-1 to lead
+   * the document). Set for plain data tables so toMarkdown can render them under
+   * their own heading. Absent for layout/nested tables or tables truncated past
+   * maxBlocks, which are appended at the end instead.
+   */
+  position?: number;
 }
 
 export interface MantisInlineRun {

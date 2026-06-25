@@ -540,6 +540,33 @@ test("toMarkdown can include images and drop tables", () => {
   assert.ok(md.includes("![Chart alt text](https://example.com/chart.png)"));
   assert.ok(!md.includes("| Quarter |"));
 });
+test("toMarkdown renders data tables under their heading, not at the end", () => {
+  const doc = new JSDOM(`<!doctype html><html><body><article>
+    <h1>Report</h1><p>Intro.</p>
+    <h2>Numbers</h2><p>Lead in.</p>
+    <table><thead><tr><th>Metric</th><th>After</th></tr></thead>
+    <tbody><tr><td>P95</td><td>101ms</td></tr></tbody></table>
+    <h2>Conclusion</h2><p>Trailing prose after the table.</p>
+  </article></body></html>`, { url: "https://example.com/r" }).window.document;
+  const art = Mantis.extract(doc);
+  assert.strictEqual(typeof art.tables[0].position, "number", "data table gets a flow position");
+  const md = Mantis.toMarkdown(art);
+  // the table must sit between its own section and the trailing section
+  assert.ok(md.indexOf("## Numbers") < md.indexOf("| Metric | After |"), "table follows its heading");
+  assert.ok(md.indexOf("| Metric | After |") < md.indexOf("## Conclusion"), "table precedes the next section");
+  assert.ok(md.indexOf("101ms") < md.indexOf("Trailing prose"), "table data is not orphaned at the end");
+});
+test("toMarkdown leaves layout tables out of the prose flow", () => {
+  const doc = new JSDOM(`<!doctype html><html><body><article>
+    <h1>Email</h1>
+    <p>Opening paragraph of the newsletter with enough text to be kept.</p>
+    <table><tr><td><p>Wrapped newsletter body paragraph in a layout cell.</p></td></tr></table>
+    <p>Trailing paragraph with sufficient length to be retained too.</p>
+  </article></body></html>`, { url: "https://example.com/e" }).window.document;
+  const art = Mantis.extract(doc);
+  // a layout table wrapping a paragraph must not be spliced inline
+  assert.strictEqual(art.tables[0].position, undefined, "layout table is not given a flow position");
+});
 test("toMarkdown still renders stored articles without runs", () => {
   const md = Mantis.toMarkdown({
     title: "Old",

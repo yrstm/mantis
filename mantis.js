@@ -394,6 +394,7 @@
         var language = codeLanguage(el);
         if (language) block.language = language;
       }
+      block.__el = el;
       out.push(block);
     }
     return out;
@@ -574,10 +575,48 @@
         caption: textOf(table.getElementsByTagName("caption")[0]),
         headers: headers,
         rows: rows,
-        source: { selector: selectorFor(table) }
+        source: { selector: selectorFor(table) },
+        __el: table
       });
     }
     return out;
+  }
+
+  // A real data table has plain-text cells; layout tables (common in emails and
+  // newsletters) wrap block-level content and must not be spliced into the prose
+  // flow, where they would duplicate text already captured as blocks.
+  function isDataTableEl(el, scope) {
+    if (!el || el.tagName !== "TABLE") return false;
+    for (var p = el.parentElement; p && p !== scope; p = p.parentElement) {
+      if (p.tagName === "TABLE") return false; // nested table: leave to fallback
+    }
+    if (el.querySelector("td p, th p, td table, td ul, td ol, td div, td h1, td h2, td h3")) return false;
+    return true;
+  }
+
+  // Record where each data table sits relative to the captured blocks so that
+  // toMarkdown can render it under its own heading instead of at the document
+  // tail. Tables that are not plain data, or whose position falls beyond the
+  // captured blocks (e.g. truncated by maxBlocks), get no position and fall back
+  // to being appended at the end, preserving previous behavior and data.
+  function positionTables(blocks, tables, scope) {
+    for (var t = 0; t < (tables ? tables.length : 0); t++) {
+      var el = tables[t].__el;
+      if (el && isDataTableEl(el, scope)) {
+        var anchor = -1;
+        for (var b = 0; b < blocks.length; b++) {
+          var bel = blocks[b].__el;
+          if (!bel) continue;
+          var rel = bel.compareDocumentPosition(el);
+          // FOLLOWING (4): table comes after this block; CONTAINS (8): block is
+          // inside the table (skip those, they are not real preceding blocks).
+          if ((rel & 4) && !(rel & 8)) anchor = b;
+        }
+        tables[t].position = anchor;
+      }
+      delete tables[t].__el;
+    }
+    for (var k = 0; k < blocks.length; k++) delete blocks[k].__el;
   }
 
   function meta(doc, name) {
@@ -719,6 +758,9 @@
         paragraphCount: paragraphs.length
       }
     };
+    // anchor data tables to their position in the block flow; strips the
+    // transient DOM references off blocks and tables before any serialization
+    positionTables(article.blocks, article.tables, scope || doc.body);
     article.textHash = hashString(article.text);
     article.contentHash = hashString(JSON.stringify({
       title: article.title,
@@ -879,14 +921,55 @@
     if (!blocks.length && article.paragraphs) {
       blocks = article.paragraphs.map(function (text) { return { type: "paragraph", text: text }; });
     }
+    // Data tables carry a `position` (set during extraction): the index of the
+    // block they follow, or -1 to lead the document. They are spliced into the
+    // flow below. Tables without a position (layout/nested tables, vision-pipeline
+    // tables, or tables truncated past maxBlocks) are appended at the end, which
+    // preserves prior behavior and never drops data.
+    var renderTables = options.tables !== false;
+    var allTables = article.tables || [];
+    var tablesAt = {};
+    var preTables = [];
+    var splicedTable = [];
+    if (renderTables) {
+      for (var ti = 0; ti < allTables.length; ti++) {
+        var pos = allTables[ti].position;
+        if (typeof pos !== "number") continue;
+        splicedTable[ti] = true;
+        if (pos < 0) preTables.push(ti);
+        else (tablesAt[pos] = tablesAt[pos] || []).push(ti);
+      }
+    }
     var lead = true; // the document lead counts as a section lead
+    // a table directly under a heading is that section's lead content
+    var flushedUpTo = -1;
+    function flushTablesThrough(idx) {
+      for (var a = flushedUpTo + 1; a <= idx; a++) {
+        var here = tablesAt[a];
+        if (!here) continue;
+        for (var h = 0; h < here.length; h++) {
+          add(tableMarkdown(allTables[here[h]]), lead ? 2 : 3);
+          lead = false;
+        }
+      }
+      flushedUpTo = idx;
+    }
+    for (var pt = 0; pt < preTables.length; pt++) {
+      add(tableMarkdown(allTables[preTables[pt]]), 2);
+      lead = false;
+    }
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
       // the page H1 usually repeats the title; emit it once
-      if (i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title) continue;
+      var dupH1 = i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title;
+      if (dupH1) {
+        flushTablesThrough(i);
+        continue;
+      }
       if (b.type === "heading") {
         add(HASHES[Math.min(Math.max(b.level || 1, 1), 6) - 1] + " " + inlineMarkdown(b), 1);
         lead = true;
+        flushTablesThrough(i);
         continue;
       }
       var prio = lead ? 2 : 3;
@@ -905,10 +988,13 @@
       } else {
         add(escapeLeader(inlineMarkdown(b)), prio);
       }
+      flushTablesThrough(i);
     }
-    if (options.tables !== false) {
-      var tables = article.tables || [];
-      for (var t = 0; t < tables.length; t++) add(tableMarkdown(tables[t]), 3);
+    if (renderTables) {
+      // fallback: tables with no inline position go at the end (as before)
+      for (var tf = 0; tf < allTables.length; tf++) {
+        if (!splicedTable[tf]) add(tableMarkdown(allTables[tf]), 3);
+      }
     }
     if (images === "alt" || images === "links") {
       var imgs = article.images || [];
