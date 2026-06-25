@@ -80,7 +80,8 @@ Within a block, link/code/emphasis structure is preserved as typed *runs*, with 
 - Metadata from `<meta>`/`<link>`: title (`og:title`/`twitter:title`/`h1`), byline, published/modified dates, canonical URL, site name, language.
 - **Content-type inference** (article / docs / forum / newsletter / product / recipe / video / unknown) from element signatures and `og:type`.
 - **Confidence** ∈ [0, 0.99], a weighted combination of scope dominance over the runner-up, paragraph count, semantic-container presence, and (1 − link density).
-- **Warnings**: `empty_content`, `short_content`, `low_confidence`, `high_link_density`, `no_content_scope`, `ambiguous_scope`; and a derived `status` of `empty | partial | completed`.
+- **Warnings**: `empty_content`, `short_content`, `low_confidence`, `high_link_density`, `no_content_scope`, `ambiguous_scope`, `blocks_truncated`, `tables_truncated`; and a derived `status` of `empty | partial | completed`.
+- **Capture-completeness diagnostics** (machine-readable, on `article.diagnostics`): `maxBlocksHit`, `droppedBlockCount`, `maxTablesHit`, `fallbackScopeUsed`, `unpositionedTables`. These convert previously-silent truncation and fallback behavior into signals a caller can route on — e.g. re-capture with a higher `maxBlocks`, or flag a partial extraction.
 - **Hashes**: `textHash` and `contentHash` via FNV-1a (32-bit), for change detection and de-duplication across captures.
 
 ### 3.3 Rendering
@@ -142,7 +143,7 @@ These targets are deliberately framed as **falsifiable claims** Mantis should be
 
 ## 6. Known limitations (stated candidly for review)
 
-- **Block-count cap (`maxBlocks = 150`).** On very long documents, content beyond the cap is excluded from the block stream. Tables are extracted on an independent pass and are not lost to the cap, but their *headings* can be. This truncation is currently silent (no warning is emitted when the cap binds) — a known gap.
+- **Block-count cap (`maxBlocks = 150`).** On very long documents, content beyond the cap is excluded from the block stream. Tables are extracted on an independent pass and are not lost to the cap, but their *headings* can be. This is no longer silent: hitting the cap sets `diagnostics.maxBlocksHit`/`droppedBlockCount` and emits a `blocks_truncated` warning. The cap itself remains a fixed block count rather than a content-aware budget.
 - **Images are not textualized on the DOM path.** Content images are emitted as `![alt](url)`; when a page provides no `alt`, the destination is preserved but the visual information (e.g., an architecture diagram) is not described. An OCR/vision path exists (`fromImage`) but is not automatically applied to in-page images.
 - **Layout-table content.** Tables used purely for layout (common in HTML email) are detected and not spliced inline, but are still appended at the document tail, where they can duplicate text already captured as blocks. Filtering them entirely from the structured output is deliberately out of scope for now to preserve JSON back-compatibility.
 - **Source anchors are not citation-grade.** `source` selectors are CSS paths (largely `nth-of-type`) that break under DOM changes; citation offsets are into flattened block text, not the rendered Markdown, and do not yet cover table cells or images equivalently. A stronger design would add stable block/table-cell IDs, per-node text hashes, alternative selectors, and text-fragment-compatible anchors.
@@ -150,10 +151,10 @@ These targets are deliberately framed as **falsifiable claims** Mantis should be
 - **Heuristic extraction** inherits the general limitation of the Readability lineage: adversarial or highly unusual layouts can mislead scope scoring. `confidence` and `warnings` are provided precisely so a consumer can detect and route low-quality captures rather than trust them blindly.
 - **Single-file maintainability.** The zero-dependency single-file design is good for distribution but, as extraction rules grow, a hand-rolled engine is harder to reason about and test exhaustively than a modular one.
 
-### Highest-value hardening (planned direction)
+### Hardening
 
-- **Machine-readable diagnostics.** Turn the silent truncation/fallback behavior into explicit signals: `maxBlocksHit`, `maxTablesHit`, `droppedBlockCount`, `fallbackScopeUsed`, `layoutTablesAppended`, `unpositionedTables`. This is the cheapest, highest-leverage hardening — it converts the §1 "silently dropped content" failure class into something a caller can detect and route on.
-- **Unified document-flow AST.** Rather than a block list plus side arrays for tables/images plus a `table.position` field, emit a single ordered node stream (`heading | paragraph | list_item | code | blockquote | table | image`) and derive the legacy `blocks`/`tables`/`images` views from it for back-compatibility. Ordering, budgeting, citation offsets, and truncation accounting all become consequences of one structure instead of reconciliations between several.
+- **Machine-readable diagnostics — *implemented*.** The previously-silent truncation/fallback behavior now surfaces as explicit signals on `article.diagnostics` (`maxBlocksHit`, `droppedBlockCount`, `maxTablesHit`, `fallbackScopeUsed`, `unpositionedTables`) plus `blocks_truncated`/`tables_truncated` warnings. This converts the §1 "silently dropped content" failure class into something a caller can detect and route on.
+- **Unified document-flow AST — *planned*.** Rather than a block list plus side arrays for tables/images plus a `table.position` field, emit a single ordered node stream (`heading | paragraph | list_item | code | blockquote | table | image`) and derive the legacy `blocks`/`tables`/`images` views from it for back-compatibility. Ordering, budgeting, citation offsets, and truncation accounting all become consequences of one structure instead of reconciliations between several.
 
 ---
 

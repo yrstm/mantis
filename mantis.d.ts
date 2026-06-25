@@ -88,6 +88,16 @@ export interface MantisDiagnostics {
   score: number;
   nextScore: number;
   paragraphCount: number;
+  /** Block extraction reached the maxBlocks cap with candidate nodes remaining. */
+  maxBlocksHit?: boolean;
+  /** Approximate count of structurally-eligible blocks dropped by the maxBlocks cap. */
+  droppedBlockCount?: number;
+  /** Table extraction reached its internal cap with tables remaining. */
+  maxTablesHit?: boolean;
+  /** A fallback scope (main/body) was used because the scored scope was too thin. */
+  fallbackScopeUsed?: boolean;
+  /** Tables not spliced into the flow (layout/nested) and appended at the tail. */
+  unpositionedTables?: number;
 }
 
 export interface MantisExtractOptions {

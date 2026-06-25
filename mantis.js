@@ -352,11 +352,12 @@
     return { depth: depth, ordered: ordered, index: index };
   }
 
-  function blocksFrom(scope, stopAt, doc, options) {
+  function blocksFrom(scope, stopAt, doc, options, stats) {
     var out = [];
     var used = {};
     var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6, dd");
-    for (var i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
+    var i;
+    for (i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
       var el = nodes[i];
       if (!KEEP[el.tagName]) continue;
       if (hidden(el)) continue;
@@ -396,6 +397,23 @@
       }
       block.__el = el;
       out.push(block);
+    }
+    if (stats) {
+      // the cap bound if we stopped on maxBlocks with candidate nodes remaining
+      stats.maxBlocksHit = out.length >= options.maxBlocks && i < nodes.length;
+      stats.droppedBlocks = 0;
+      if (stats.maxBlocksHit) {
+        // count remaining structurally-eligible candidates (cheap filters only)
+        for (var j = i; j < nodes.length; j++) {
+          var n = nodes[j];
+          if (!KEEP[n.tagName] || hidden(n)) continue;
+          if (n !== scope && flagged(n, stopAt || scope)) continue;
+          var ft = textOf(n);
+          if (!ft) continue;
+          if (!/^H/.test(n.tagName) && ft.length < options.minTextLength) continue;
+          stats.droppedBlocks++;
+        }
+      }
     }
     return out;
   }
@@ -551,10 +569,11 @@
     return out;
   }
 
-  function tablesFrom(scope) {
+  function tablesFrom(scope, stats) {
     var out = [];
+    var TABLE_CAP = 50;
     var tables = scope ? scope.getElementsByTagName("table") : [];
-    for (var i = 0; i < tables.length && out.length < 50; i++) {
+    for (var i = 0; i < tables.length && out.length < TABLE_CAP; i++) {
       var table = tables[i];
       if (hidden(table) || flagged(table, scope)) continue;
       var rows = [];
@@ -579,6 +598,7 @@
         __el: table
       });
     }
+    if (stats) stats.maxTablesHit = out.length >= TABLE_CAP && i < tables.length;
     return out;
   }
 
@@ -676,6 +696,8 @@
     if (article.diagnostics.linkDensity > 0.35) out.push("high_link_density");
     if (!scopeInfo.el) out.push("no_content_scope");
     if (article.diagnostics.nextScore && article.diagnostics.score / (article.diagnostics.nextScore + 1) < 1.2) out.push("ambiguous_scope");
+    if (article.diagnostics.maxBlocksHit) out.push("blocks_truncated");
+    if (article.diagnostics.maxTablesHit) out.push("tables_truncated");
     return out;
   }
 
@@ -715,12 +737,23 @@
     options = defaults(options);
     var scopeInfo = findContent(doc);
     var scope = scopeInfo.el;
-    var blocks = scope ? blocksFrom(scope, scope, doc, options) : [];
+    var blockStats = {};
+    var tableStats = {};
+    var fallbackScope = false;
+    var blocks = scope ? blocksFrom(scope, scope, doc, options, blockStats) : [];
     if (blocks.length < 2) {
       var mainEl = doc.querySelector('main, [role="main"]');
-      if (mainEl && mainEl !== scope) blocks = blocksFrom(mainEl, mainEl, doc, options);
+      if (mainEl && mainEl !== scope) {
+        blockStats = {};
+        blocks = blocksFrom(mainEl, mainEl, doc, options, blockStats);
+        fallbackScope = true;
+      }
     }
-    if (blocks.length < 2 && doc.body) blocks = blocksFrom(doc.body, doc.body, doc, options);
+    if (blocks.length < 2 && doc.body) {
+      blockStats = {};
+      blocks = blocksFrom(doc.body, doc.body, doc, options, blockStats);
+      fallbackScope = true;
+    }
     var paragraphs = paragraphsFromBlocks(blocks);
     var sections = sectionsFromBlocks(blocks);
     var citations = citationsFromBlocks(blocks);
@@ -745,7 +778,7 @@
       citations: citations,
       links: options.includeLinks ? linksFrom(scope || doc.body, doc) : [],
       images: options.includeImages ? imagesFrom(scope || doc.body, doc) : [],
-      tables: options.includeTables ? tablesFrom(scope || doc.body) : [],
+      tables: options.includeTables ? tablesFrom(scope || doc.body, tableStats) : [],
       selection: selectionFrom(doc),
       capturedAt: new Date().toISOString(),
       contentType: inferContentType(doc, scope),
@@ -755,12 +788,22 @@
         linkDensity: scope ? Math.round(linkDensity(scope) * 100) / 100 : 0,
         score: Math.round(scopeInfo.score),
         nextScore: Math.round(scopeInfo.nextScore),
-        paragraphCount: paragraphs.length
+        paragraphCount: paragraphs.length,
+        // machine-readable capture-completeness signals
+        maxBlocksHit: !!blockStats.maxBlocksHit,
+        droppedBlockCount: blockStats.droppedBlocks || 0,
+        maxTablesHit: !!tableStats.maxTablesHit,
+        fallbackScopeUsed: fallbackScope,
+        unpositionedTables: 0
       }
     };
     // anchor data tables to their position in the block flow; strips the
     // transient DOM references off blocks and tables before any serialization
     positionTables(article.blocks, article.tables, scope || doc.body);
+    // tables that were not spliced into the flow (layout/nested) are appended
+    for (var ut = 0; ut < article.tables.length; ut++) {
+      if (typeof article.tables[ut].position !== "number") article.diagnostics.unpositionedTables++;
+    }
     article.textHash = hashString(article.text);
     article.contentHash = hashString(JSON.stringify({
       title: article.title,

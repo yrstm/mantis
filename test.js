@@ -556,6 +556,24 @@ test("toMarkdown renders data tables under their heading, not at the end", () =>
   assert.ok(md.indexOf("| Metric | After |") < md.indexOf("## Conclusion"), "table precedes the next section");
   assert.ok(md.indexOf("101ms") < md.indexOf("Trailing prose"), "table data is not orphaned at the end");
 });
+test("extract reports machine-readable capture-completeness diagnostics", () => {
+  let body = "";
+  for (let i = 0; i < 200; i++) body += `<p>Paragraph ${i} with unique words alpha${i} beta${i} gamma${i} delta${i}.</p>`;
+  const long = Mantis.extract(new JSDOM(`<!doctype html><html><body><article><h1>Long</h1>${body}</article></body></html>`,
+    { url: "https://example.com/long" }).window.document);
+  assert.strictEqual(long.diagnostics.maxBlocksHit, true, "cap is reported as hit");
+  assert.ok(long.diagnostics.droppedBlockCount > 0, "dropped block count is reported");
+  assert.ok(long.warnings.includes("blocks_truncated"), "truncation surfaces as a warning");
+
+  const clean = Mantis.extract(new JSDOM(`<!doctype html><html><body><article>
+    <h1>Clean</h1><p>A short clean article paragraph that clears the length floor.</p>
+    <p>A second paragraph also long enough to be retained in the output.</p></article></body></html>`,
+    { url: "https://example.com/clean" }).window.document);
+  assert.strictEqual(clean.diagnostics.maxBlocksHit, false);
+  assert.strictEqual(clean.diagnostics.droppedBlockCount, 0);
+  assert.strictEqual(clean.diagnostics.unpositionedTables, 0);
+  assert.ok(!clean.warnings.includes("blocks_truncated"));
+});
 test("toMarkdown leaves layout tables out of the prose flow", () => {
   const doc = new JSDOM(`<!doctype html><html><body><article>
     <h1>Email</h1>
