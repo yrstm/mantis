@@ -59,9 +59,8 @@ visionFn may return Markdown/plain text, { markdown, text, confidence, warnings,
 { html } with opts.DOMParser, or a partial/full MantisArticle.
 Mantis normalizes it to an article with captureMode "image", imageCount, hashes, sections, citations,
 status, warnings, and Markdown-compatible blocks/tables. Mantis does not perform OCR itself.
-The optional macOS helper in helpers/macos-screen-capture uses Apple Vision for local OCR, then calls
-Mantis.fromImage() through helpers/macos-screen-capture/mantis-normalize.js. It is versioned
-separately from the library.
+The macOS capture tool lives separately at https://github.com/yrstm/mantis-capture. It uses Apple
+Vision for local OCR and calls Mantis.fromImage() through its own normalizer.
 
 ## run options
 

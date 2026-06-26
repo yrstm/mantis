@@ -8,8 +8,7 @@ client-side rendering, logged-in state, and content the user can already see. Th
 Markdown plus metadata, citations, source selectors, confidence, warnings, and hashes.
 
 There is also a lower-level screenshot/image API, `Mantis.fromImage()`. It is separate from the DOM
-extraction path. The optional macOS menu bar helper in `helpers/macos-screen-capture` uses Apple
-Vision locally, then hands OCR output to Mantis so it can be normalized into the same article shape.
+extraction path and expects caller-supplied OCR or vision output so Mantis stays dependency-free.
 
 One file. Zero runtime dependencies. No network requests.
 
@@ -312,16 +311,10 @@ Mantis keeps the model or OCR dependency in your stack, then handles structure, 
 hashes, warnings, and frontmatter. Screenshot captures set `captureMode: "image"` and `imageCount`,
 so agents can distinguish OCR-derived context from live DOM captures.
 
-This API is meant for separate tools. The macOS helper in `helpers/macos-screen-capture` binds
-`Cmd+Shift+M`, calls `screencapture`, runs Apple Vision locally, saves the image and Markdown as
-files, and copies the Markdown to the clipboard. Mantis handles the final normalization step.
-
-```sh
-cd helpers/macos-screen-capture
-swift run mantis-screen-capture
-```
-
-The helper is versioned separately from the library. The current helper version is `0.1.0`.
+This API is meant for separate tools. The macOS screenshot workflow now lives in the separate
+Mantis Capture repo: <https://github.com/yrstm/mantis-capture>. It binds `Cmd+Shift+M`, calls
+`screencapture`, runs Apple Vision locally, and depends on `@yrstm/mantis` for the final
+normalization step.
 
 ## Development
 

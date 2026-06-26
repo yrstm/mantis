@@ -409,12 +409,17 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
 
     <section class="section">
       <h2>Screenshot API</h2>
-      <p class="muted">Screenshot capture is a separate local-helper workflow. The library API, <code>Mantis.fromImage()</code>, lets a tool pass OCR or vision output into the same Markdown pipeline without adding OCR dependencies to Mantis.</p>
+      <p class="muted">Screenshot capture is a separate tool workflow. The library API, <code>Mantis.fromImage()</code>, lets tools pass OCR or vision output into the same Markdown pipeline without adding OCR dependencies to Mantis. The macOS capture tool now lives at <a href="https://github.com/yrstm/mantis-capture">yrstm/mantis-capture</a>.</p>
     </section>
 
     <section class="section" id="changelog">
       <h2>Changelog</h2>
       <div class="changelog">
+        <article class="change">
+          <time datetime="2026-06-26">2026-06-26</time>
+          <h3>macOS capture repo split</h3>
+          <p class="muted">Moved the macOS screen capture helper out of this library repo and into <code>yrstm/mantis-capture</code>, leaving Mantis as the extraction and normalization library only.</p>
+        </article>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>
           <h3>v0.3.3 Markdown marker fix (#17)</h3>
@@ -429,11 +434,6 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
           <time datetime="2026-06-24">2026-06-24</time>
           <h3>v0.3.1 Apache-2.0 license (#15)</h3>
           <p class="muted">Relicensed Mantis under Apache-2.0 from v0.3.1, added a NOTICE file, and documented that v0.3.0 and earlier stay MIT for those copies.</p>
-        </article>
-        <article class="change">
-          <time datetime="2026-06-24">2026-06-24</time>
-          <h3>macOS screen capture helper (#13)</h3>
-          <p class="muted">Added an optional menu bar helper that captures a selected screenshot, runs Apple Vision locally, normalizes OCR through Mantis, saves PNG and Markdown files, and copies Markdown to the clipboard.</p>
         </article>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>
