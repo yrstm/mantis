@@ -100,5 +100,13 @@
     "metadata": { "title": "Link Rich Story" },
     "markdown": ["[primary source](https://example.com/source)", "[supporting context](https://example.com/context)"],
     "diagnostics": { "minConfidence": 0.65, "scopeTag": "ARTICLE" }
+  },
+  {
+    "name": "social post (X/Twitter-style div markup, no p tags)",
+    "file": "social-post.html",
+    "expected": ["Zulu social paragraph", "Yankee social paragraph"],
+    "forbidden": ["Reply reaction", "Trending now", "Some trend", "Who to follow", "Suggested account"],
+    "metadata": { "title": "Person on X: \"Zulu social paragraph\"" },
+    "diagnostics": { "minConfidence": 0.6, "scopeTag": "ARTICLE" }
   }
 ]

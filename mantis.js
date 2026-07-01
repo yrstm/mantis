@@ -38,8 +38,21 @@
   var CHROME_CLASS = /(^|[\s_-])(sidebar|newsletter)([\s_]|$)/i;
   var GOOD = /article|body|content|entry|main|markdown|markup|post|story|text|docs|recipe/i;
   var HIDDEN_CLASS = /(^|\s)(hidden|collapsed|visually-hidden|sr-only|screen-reader|u-hidden|is-hidden)(\s|$)/i;
-  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, DD: 1 };
-  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading", DD: "paragraph" };
+  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, DD: 1, DIV: 1 };
+  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading", DD: "paragraph", DIV: "paragraph" };
+  // app-shell UIs (X/Twitter, Bluesky, Threads, LinkedIn, ...) mark up prose in
+  // plain <div>s instead of <p>; a div with only inline-level children reads as
+  // a paragraph even though it carries no semantic tag.
+  var INLINE_TAGS = { SPAN: 1, A: 1, B: 1, I: 1, EM: 1, STRONG: 1, U: 1, S: 1, BR: 1, TIME: 1, ABBR: 1, CODE: 1, SMALL: 1, MARK: 1, SUB: 1, SUP: 1, IMG: 1, WBR: 1, BDI: 1, Q: 1 };
+
+  function isTextDiv(el) {
+    if (el.tagName !== "DIV") return false;
+    var kids = el.children;
+    for (var i = 0; i < kids.length; i++) {
+      if (!INLINE_TAGS[kids[i].tagName]) return false;
+    }
+    return true;
+  }
 
   function textOf(el) { return (el && el.textContent || "").replace(/\s+/g, " ").trim(); }
 
@@ -115,9 +128,18 @@
     return ("0000000" + (h >>> 0).toString(16)).slice(-8);
   }
 
+  // app-shell frameworks (X/Twitter, Bluesky, LinkedIn, ...) hash their class
+  // names and hang stable hooks off data-testid/data-test instead, often
+  // camelCased ("sidebarColumn"); split camelCase into words so the existing
+  // whitespace-bounded chrome regexes still match those hooks.
+  function wordify(s) {
+    return s.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  }
+
   function signature(el) {
-    return (el.id || "") + " " + (el.className && el.className.baseVal !== undefined ? "" : el.className || "") + " " +
-      (el.getAttribute && (el.getAttribute("role") || "") + " " + (el.getAttribute("itemprop") || ""));
+    var testId = el.getAttribute ? (el.getAttribute("data-testid") || el.getAttribute("data-test") || "") : "";
+    return wordify((el.id || "") + " " + (el.className && el.className.baseVal !== undefined ? "" : el.className || "") + " " +
+      (el.getAttribute && (el.getAttribute("role") || "") + " " + (el.getAttribute("itemprop") || "") + " " + testId));
   }
 
   function classText(el) {
@@ -197,11 +219,12 @@
 
   // score readable nodes, weighting direct containers and semantic ancestors
   function findContent(doc) {
-    var ps = doc.querySelectorAll("p, blockquote, pre, li, dd");
+    var ps = doc.querySelectorAll("p, blockquote, pre, li, dd, div");
     var scores = [];
     var seen = [];
     for (var i = 0; i < ps.length; i++) {
       var p = ps[i];
+      if (p.tagName === "DIV" && !isTextDiv(p)) continue;
       if (hidden(p) || flagged(p)) continue;
       var len = textOf(p).length;
       if (len < 25) continue;
@@ -355,11 +378,12 @@
   function blocksFrom(scope, stopAt, doc, options, stats) {
     var out = [];
     var used = {};
-    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6, dd");
+    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6, dd, div");
     var i;
     for (i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
       var el = nodes[i];
       if (!KEEP[el.tagName]) continue;
+      if (el.tagName === "DIV" && !isTextDiv(el)) continue;
       if (hidden(el)) continue;
       if (el !== scope && flagged(el, stopAt || scope)) continue;
       var heading = /^H/.test(el.tagName);
@@ -407,6 +431,7 @@
         for (var j = i; j < nodes.length; j++) {
           var n = nodes[j];
           if (!KEEP[n.tagName] || hidden(n)) continue;
+          if (n.tagName === "DIV" && !isTextDiv(n)) continue;
           if (n !== scope && flagged(n, stopAt || scope)) continue;
           var ft = textOf(n);
           if (!ft) continue;
