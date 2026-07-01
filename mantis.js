@@ -217,11 +217,16 @@
     scores[at] += points * semanticMultiplier(el);
   }
 
+  function isArticleEl(el) {
+    return el.tagName === "ARTICLE" || /^article$/i.test(el.getAttribute && (el.getAttribute("role") || ""));
+  }
+
   // score readable nodes, weighting direct containers and semantic ancestors
   function findContent(doc) {
     var ps = doc.querySelectorAll("p, blockquote, pre, li, dd, div");
     var scores = [];
     var seen = [];
+    var tierWeight = [1, 0.65, 0.45];
     for (var i = 0; i < ps.length; i++) {
       var p = ps[i];
       if (p.tagName === "DIV" && !isTextDiv(p)) continue;
@@ -229,14 +234,18 @@
       var len = textOf(p).length;
       if (len < 25) continue;
       var points = Math.min(len, 600);
-      var parent = p.parentElement;
-      var grand = parent && parent.parentElement;
-      addScore(parent, points, scores, seen);
-      addScore(grand, points * 0.65, scores, seen);
-      for (var a = grand && grand.parentElement; a && !/^(HTML|BODY)$/.test(a.tagName); a = a.parentElement) {
-        if (/^(ARTICLE|MAIN|SECTION)$/.test(a.tagName) || GOOD.test(signature(a))) {
-          addScore(a, points * 0.45, scores, seen);
+      var tier = 0;
+      for (var a = p.parentElement; a && !/^(HTML|BODY)$/.test(a.tagName); a = a.parentElement) {
+        if (tier < 2 || /^(ARTICLE|MAIN|SECTION)$/.test(a.tagName) || GOOD.test(signature(a))) {
+          addScore(a, points * tierWeight[Math.min(tier, 2)], scores, seen);
         }
+        // an <article> is its own content boundary: once a paragraph's score
+        // has been credited up to its nearest enclosing article, stop
+        // climbing so sibling articles (replies in a conversation thread,
+        // cards in a feed) can't bleed their score into a shared outer
+        // wrapper (main/section) that contains many unrelated articles.
+        if (isArticleEl(a)) break;
+        tier++;
       }
     }
     var best = null, bestScore = 0, nextScore = 0;

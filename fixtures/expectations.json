@@ -108,5 +108,13 @@
     "forbidden": ["Reply reaction", "Trending now", "Some trend", "Who to follow", "Suggested account"],
     "metadata": { "title": "Person on X: \"Zulu social paragraph\"" },
     "diagnostics": { "minConfidence": 0.6, "scopeTag": "ARTICLE" }
+  },
+  {
+    "name": "social conversation thread (focused post vs. several sibling replies)",
+    "file": "social-thread.html",
+    "expected": ["Alpha thread paragraph", "Bravo thread paragraph"],
+    "forbidden": ["Reply thread text one", "Reply thread text two", "Reply thread text three", "Reply thread text four", "Reply thread text five"],
+    "metadata": { "title": "Person on X: \"Alpha thread paragraph\"" },
+    "diagnostics": { "minConfidence": 0.6, "scopeTag": "ARTICLE" }
   }
 ]
