@@ -319,6 +319,57 @@ test("extracts definition descriptions (dd) as paragraph blocks", () => {
   assert.ok(dl.text.includes("second parameter description"), "second dd captured");
 });
 
+/* ---------- extract(): app-shell UIs mark up prose in bare <div>s (X/Twitter, Bluesky, ...) ---------- */
+const SOCIAL_POST = new JSDOM(`<!doctype html><html><head>
+<title>Person on X: "Kilo social paragraph" / X</title>
+<meta property="og:title" content="Person on X: &quot;Kilo social paragraph&quot;">
+</head><body>
+<main role="main">
+  <div data-testid="primaryColumn">
+    <article role="article" data-testid="tweet">
+      <div data-testid="User-Name"><span>Person</span><span>@person</span></div>
+      <div data-testid="tweetText"><span>Kilo social paragraph has no p tag at all, only nested spans inside a div, the way X/Twitter renders post bodies.</span></div>
+      <div data-testid="tweetText"><span>Lima social paragraph is a second div-based block from the same post and should also be captured.</span></div>
+      <div role="group" aria-label="reply, repost, like"><div data-testid="reply"><span>3</span></div></div>
+    </article>
+    <article role="article" data-testid="tweet">
+      <div data-testid="tweetText"><span>Reply post text should not be mixed into the focused post above.</span></div>
+    </article>
+  </div>
+  <div data-testid="sidebarColumn">
+    <h2>Trending now</h2>
+    <div><span>Some trend</span><span>10K posts</span></div>
+  </div>
+</main>
+</body></html>`).window.document;
+const socialPost = Mantis.extract(SOCIAL_POST);
+test("extracts div-based post text with no p tags (X/Twitter-style markup)", () => {
+  assert.strictEqual(socialPost.diagnostics.scopeTag, "ARTICLE");
+  assert.ok(socialPost.text.includes("Kilo social paragraph"), "first div block captured");
+  assert.ok(socialPost.text.includes("Lima social paragraph"), "second div block captured");
+  assert.ok(!socialPost.text.includes("Reply post text"), "other post's div text excluded");
+  assert.ok(!socialPost.text.includes("Trending now"), "sidebar chrome excluded");
+  assert.strictEqual(socialPost.warnings.indexOf("no_content_scope"), -1);
+});
+
+const LAYOUT_DIVS = new JSDOM(`<!doctype html><html><body>
+<article>
+  <h1>Layout Wrapper Article</h1>
+  <p>Mike layout paragraph is a normal p tag and should be captured as usual.</p>
+  <div class="card">
+    <div class="card-icon"><img src="x.png" alt="icon"></div>
+    <div class="card-body">November layout paragraph lives directly inside a div with no spans at all, long enough to pass the length filter.</div>
+  </div>
+</article>
+</body></html>`).window.document;
+const layoutDivs = Mantis.extract(LAYOUT_DIVS);
+test("captures leaf text divs (with or without spans) but not their non-leaf wrappers", () => {
+  assert.ok(layoutDivs.text.includes("Mike layout paragraph"));
+  assert.ok(layoutDivs.text.includes("November layout paragraph"), "childless text-bearing div captured");
+  const divBlocks = layoutDivs.blocks.filter((block) => block.tag === "DIV");
+  assert.strictEqual(divBlocks.length, 1, "only the leaf div became a block, not its wrapper");
+});
+
 const NEWSLETTER_ARTICLE_CLASS = new JSDOM(`<!doctype html><html><head>
 <title>Newsletter Post - Site</title><meta property="article:author" content="Newsletter Author">
 </head><body>
