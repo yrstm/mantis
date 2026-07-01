@@ -352,6 +352,36 @@ test("extracts div-based post text with no p tags (X/Twitter-style markup)", () 
   assert.strictEqual(socialPost.warnings.indexOf("no_content_scope"), -1);
 });
 
+/* ---------- extract(): a focused post's own <article> is a scoring boundary, ---------- */
+/* so a long sibling reply thread can't outweigh it and bleed into <main>      */
+function replyArticle(n) {
+  return `<article role="article" data-testid="tweet"><div data-testid="tweetText"><span>Reply thread text ${n} adds another separate comment from a different participant in this same conversation thread.</span></div></article>`;
+}
+const SOCIAL_THREAD = new JSDOM(`<!doctype html><html><head>
+<title>Person on X: "Mike thread paragraph" / X</title>
+</head><body>
+<main role="main">
+  <div data-testid="primaryColumn">
+    <div aria-label="Timeline: Conversation">
+      <div>
+        <article role="article" data-testid="tweet">
+          <div data-testid="tweetText"><span>Mike thread paragraph opens the focused post with enough content that it should clearly win the scope even against a long reply thread below it.</span></div>
+          <div data-testid="tweetText"><span>November thread paragraph continues the same focused post and should also be captured alongside the first one.</span></div>
+        </article>
+        ${[1, 2, 3, 4, 5].map(replyArticle).join("\n")}
+      </div>
+    </div>
+  </div>
+</main>
+</body></html>`).window.document;
+const socialThread = Mantis.extract(SOCIAL_THREAD);
+test("a focused post's own article stops sibling replies from bleeding into a shared <main>", () => {
+  assert.strictEqual(socialThread.diagnostics.scopeTag, "ARTICLE");
+  assert.ok(socialThread.text.includes("Mike thread paragraph"));
+  assert.ok(socialThread.text.includes("November thread paragraph"));
+  assert.ok(!socialThread.text.includes("Reply thread text"), "sibling reply articles excluded from the focused post");
+});
+
 const LAYOUT_DIVS = new JSDOM(`<!doctype html><html><body>
 <article>
   <h1>Layout Wrapper Article</h1>
@@ -665,7 +695,7 @@ test("package license metadata is Apache-2.0 with notice", () => {
   const notice = fs.readFileSync(path.join(__dirname, "NOTICE"), "utf8");
   assert.strictEqual(pkg.name, "@yrstm/mantis");
   assert.strictEqual(pkg.license, "Apache-2.0");
-  assert.strictEqual(pkg.version, "0.3.3");
+  assert.strictEqual(pkg.version, "0.3.5");
   assert.ok(pkg.files.includes("LICENSE"));
   assert.ok(pkg.files.includes("NOTICE"));
   assert.ok(license.includes("Apache License"));
