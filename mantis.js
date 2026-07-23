@@ -597,7 +597,8 @@
         src: src,
         alt: attr(el, "alt"),
         title: attr(el, "title"),
-        source: { selector: selectorFor(el) }
+        source: { selector: selectorFor(el) },
+        __el: el
       });
     }
     return out;
@@ -653,24 +654,39 @@
   // tail. Tables that are not plain data, or whose position falls beyond the
   // captured blocks (e.g. truncated by maxBlocks), get no position and fall back
   // to being appended at the end, preserving previous behavior and data.
+  // Index of the last captured block that precedes `el` in document order, or
+  // -1 when `el` leads the document.
+  function anchorIndex(blocks, el) {
+    var anchor = -1;
+    for (var b = 0; b < blocks.length; b++) {
+      var bel = blocks[b].__el;
+      if (!bel) continue;
+      var rel = bel.compareDocumentPosition(el);
+      // FOLLOWING (4): el comes after this block; CONTAINS (8): the block is
+      // inside el (skip those, they are not real preceding blocks).
+      if ((rel & 4) && !(rel & 8)) anchor = b;
+    }
+    return anchor;
+  }
+
   function positionTables(blocks, tables, scope) {
     for (var t = 0; t < (tables ? tables.length : 0); t++) {
       var el = tables[t].__el;
-      if (el && isDataTableEl(el, scope)) {
-        var anchor = -1;
-        for (var b = 0; b < blocks.length; b++) {
-          var bel = blocks[b].__el;
-          if (!bel) continue;
-          var rel = bel.compareDocumentPosition(el);
-          // FOLLOWING (4): table comes after this block; CONTAINS (8): block is
-          // inside the table (skip those, they are not real preceding blocks).
-          if ((rel & 4) && !(rel & 8)) anchor = b;
-        }
-        tables[t].position = anchor;
-      }
+      if (el && isDataTableEl(el, scope)) tables[t].position = anchorIndex(blocks, el);
       delete tables[t].__el;
     }
-    for (var k = 0; k < blocks.length; k++) delete blocks[k].__el;
+  }
+
+  // Record where each content image sits relative to the captured blocks so
+  // toMarkdown can render it at its place in the prose instead of in a list at
+  // the document tail. Images without a DOM element (vision pipeline, stored
+  // articles) get no position and keep the trailing-list fallback.
+  function positionImages(blocks, images) {
+    for (var m = 0; m < (images ? images.length : 0); m++) {
+      var el = images[m].__el;
+      if (el) images[m].position = anchorIndex(blocks, el);
+      delete images[m].__el;
+    }
   }
 
   function meta(doc, name) {
@@ -828,15 +844,21 @@
         droppedBlockCount: blockStats.droppedBlocks || 0,
         maxTablesHit: !!tableStats.maxTablesHit,
         fallbackScopeUsed: fallbackScope,
-        unpositionedTables: 0
+        unpositionedTables: 0,
+        unpositionedImages: 0
       }
     };
-    // anchor data tables to their position in the block flow; strips the
-    // transient DOM references off blocks and tables before any serialization
+    // anchor data tables and content images to their position in the block
+    // flow; strips the transient DOM references before any serialization
     positionTables(article.blocks, article.tables, scope || doc.body);
-    // tables that were not spliced into the flow (layout/nested) are appended
+    positionImages(article.blocks, article.images);
+    for (var kb = 0; kb < article.blocks.length; kb++) delete article.blocks[kb].__el;
+    // tables and images that were not spliced into the flow are appended
     for (var ut = 0; ut < article.tables.length; ut++) {
       if (typeof article.tables[ut].position !== "number") article.diagnostics.unpositionedTables++;
+    }
+    for (var ui = 0; ui < article.images.length; ui++) {
+      if (typeof article.images[ui].position !== "number") article.diagnostics.unpositionedImages++;
     }
     article.textHash = hashString(article.text);
     article.contentHash = hashString(JSON.stringify({
@@ -998,11 +1020,11 @@
     if (!blocks.length && article.paragraphs) {
       blocks = article.paragraphs.map(function (text) { return { type: "paragraph", text: text }; });
     }
-    // Data tables carry a `position` (set during extraction): the index of the
-    // block they follow, or -1 to lead the document. They are spliced into the
-    // flow below. Tables without a position (layout/nested tables, vision-pipeline
-    // tables, or tables truncated past maxBlocks) are appended at the end, which
-    // preserves prior behavior and never drops data.
+    // Data tables and content images carry a `position` (set during
+    // extraction): the index of the block they follow, or -1 to lead the
+    // document. They are spliced into the flow below. Items without a position
+    // (layout/nested tables, vision-pipeline captures, stored articles) are
+    // appended at the end, which preserves prior behavior and never drops data.
     var renderTables = options.tables !== false;
     var allTables = article.tables || [];
     var tablesAt = {};
@@ -1017,16 +1039,41 @@
         else (tablesAt[pos] = tablesAt[pos] || []).push(ti);
       }
     }
+    var renderImages = images === "alt" || images === "links";
+    var allImages = renderImages ? (article.images || []) : [];
+    var imagesAt = {};
+    var preImages = [];
+    var splicedImage = [];
+    for (var mi = 0; mi < allImages.length; mi++) {
+      var ipos = allImages[mi].position;
+      // out-of-range anchors (hand-edited or truncated articles) fall back
+      if (typeof ipos !== "number" || ipos >= blocks.length) continue;
+      splicedImage[mi] = true;
+      if (ipos < 0) preImages.push(mi);
+      else (imagesAt[ipos] = imagesAt[ipos] || []).push(mi);
+    }
+    function imageMarkdown(img) {
+      var alt = escapeInline(img.alt || "image");
+      var dest = linkDestination(img.src);
+      return images === "alt" ? "![" + alt + "](" + dest + ")" : "[" + alt + "](" + dest + ")";
+    }
     var lead = true; // the document lead counts as a section lead
     // a table directly under a heading is that section's lead content
     var flushedUpTo = -1;
-    function flushTablesThrough(idx) {
+    function flushInlineThrough(idx) {
       for (var a = flushedUpTo + 1; a <= idx; a++) {
         var here = tablesAt[a];
-        if (!here) continue;
-        for (var h = 0; h < here.length; h++) {
-          add(tableMarkdown(allTables[here[h]]), lead ? 2 : 3);
-          lead = false;
+        if (here) {
+          for (var h = 0; h < here.length; h++) {
+            add(tableMarkdown(allTables[here[h]]), lead ? 2 : 3);
+            lead = false;
+          }
+        }
+        // images render at their block anchor but keep image priority, so the
+        // outline budget still sheds them first; they do not consume `lead`
+        var ihere = imagesAt[a];
+        if (ihere) {
+          for (var g = 0; g < ihere.length; g++) add(imageMarkdown(allImages[ihere[g]]), 4);
         }
       }
       flushedUpTo = idx;
@@ -1035,18 +1082,19 @@
       add(tableMarkdown(allTables[preTables[pt]]), 2);
       lead = false;
     }
+    for (var pi = 0; pi < preImages.length; pi++) add(imageMarkdown(allImages[preImages[pi]]), 4);
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
       // the page H1 usually repeats the title; emit it once
       var dupH1 = i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title;
       if (dupH1) {
-        flushTablesThrough(i);
+        flushInlineThrough(i);
         continue;
       }
       if (b.type === "heading") {
         add(HASHES[Math.min(Math.max(b.level || 1, 1), 6) - 1] + " " + inlineMarkdown(b), 1);
         lead = true;
-        flushTablesThrough(i);
+        flushInlineThrough(i);
         continue;
       }
       var prio = lead ? 2 : 3;
@@ -1065,7 +1113,7 @@
       } else {
         add(escapeLeader(inlineMarkdown(b)), prio);
       }
-      flushTablesThrough(i);
+      flushInlineThrough(i);
     }
     if (renderTables) {
       // fallback: tables with no inline position go at the end (as before)
@@ -1073,13 +1121,11 @@
         if (!splicedTable[tf]) add(tableMarkdown(allTables[tf]), 3);
       }
     }
-    if (images === "alt" || images === "links") {
-      var imgs = article.images || [];
+    if (renderImages) {
+      // fallback: images with no inline position go at the end (as before)
       var rendered = [];
-      for (var m = 0; m < imgs.length; m++) {
-        var alt = escapeInline(imgs[m].alt || "image");
-        var dest = linkDestination(imgs[m].src);
-        rendered.push(images === "alt" ? "![" + alt + "](" + dest + ")" : "[" + alt + "](" + dest + ")");
+      for (var m = 0; m < allImages.length; m++) {
+        if (!splicedImage[m]) rendered.push(imageMarkdown(allImages[m]));
       }
       if (rendered.length) add(rendered.join("\n"), 4);
     }

@@ -168,8 +168,10 @@ const markdown = Mantis.toMarkdown(article, { frontmatter: true, budget: "outlin
 | `includeTables` | `true` |
 
 Hard caps: 200 links, 100 images, 50 tables. Non-content images such as avatars, icons, logos,
-badges, social buttons, and tracking pixels are filtered before Markdown rendering. `selection` is
-only captured in a live browser context; it is always `null` in `fromHTML()`.
+badges, social buttons, and tracking pixels are filtered before Markdown rendering. Content images
+and data tables render at their original position in the prose flow; items without a captured
+position (vision-pipeline or stored articles) are appended at the end. `selection` is only captured
+in a live browser context; it is always `null` in `fromHTML()`.
 
 Frontmatter also includes cheap routing signals when available: `captureMode`, `imageCount`,
 `selectionChars`, `blockCount`, `citationCount`, `linkCount`, and `tableCount`. With frontmatter
