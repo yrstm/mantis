@@ -238,18 +238,14 @@
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 24px;
-      border: 1px solid #252b37;
-      border-radius: 10px;
-      padding: 22px;
-      color: #eef1f6;
-      background: #141821;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
     }
     .extension-callout h2 { margin-bottom: 8px; }
-    .extension-callout p { margin: 0; color: #aab1be; }
+    .extension-callout p { margin: 0; color: var(--muted); }
     .extension-callout .button {
-      border-color: #fff;
-      color: var(--ink);
-      background: #fff;
       white-space: nowrap;
     }
     footer {
@@ -287,7 +283,7 @@
         <p class="lead">Mantis is a small extraction library that turns rendered web content into clean Markdown for agents.</p>
         <p class="muted">It runs over the live DOM, so it works after client-side rendering and logged-in state. Nothing is uploaded by default.</p>
         <div class="actions">
-          <a class="button" href="extension/">Meet the extension</a>
+          <a class="button" href="extension/">Mantis Extension</a>
           <a class="button secondary" href="#paste">Try paste converter</a>
         </div>
         <div class="chips">
@@ -324,9 +320,9 @@ Requests must include a bearer token with the `billing:read` scope.</pre>
       <div class="extension-callout">
         <div>
           <h2>Mantis Extension</h2>
-          <p>Turn the rendered page or your current selection into agent-ready Markdown with one click. Chrome and Safari packages are in pre-release review.</p>
+          <p>Copy the current page or selected text as Markdown. Chrome and Safari builds are in pre-release testing.</p>
         </div>
-        <a class="button" href="extension/">View the extension page →</a>
+        <a class="button secondary" href="extension/">Extension details</a>
       </div>
     </section>
 
@@ -486,7 +482,7 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>
           <h3>Screenshot-to-Markdown normalization (#10)</h3>
-          <p class="muted">Added <code>Mantis.fromImage()</code> so caller-supplied OCR or vision output can be normalized into Mantis articles and agent-ready Markdown.</p>
+          <p class="muted">Added <code>Mantis.fromImage()</code> so caller-supplied OCR or vision output can be normalized into Mantis articles and structured Markdown.</p>
         </article>
         <article class="change">
           <time datetime="2026-06-24">2026-06-24</time>

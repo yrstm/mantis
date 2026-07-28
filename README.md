@@ -22,9 +22,8 @@ npm install https://github.com/yrstm/mantis/archive/9e462696990449979b309886d358
 ```
 
 The official Mantis browser extension is packaged separately from this open-source library repo.
-See the [Mantis Extension page](https://yrstm.github.io/mantis/extension/) for the capture flow,
-privacy boundary, current limitations, and release status. Store links will be added there when
-they are ready.
+See the [Mantis Extension page](https://yrstm.github.io/mantis/extension/) for usage, privacy,
+limitations, and install status. Store links will be added there when they are ready.
 
 ```js
 const article = Mantis.extract(document);
