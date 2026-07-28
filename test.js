@@ -854,10 +854,24 @@ test("public extension page has a canonical URL and honest release status", () =
     "https://yrstm.github.io/mantis/extension/"
   );
   assert.ok(page.querySelector('meta[name="description"]').getAttribute("content"));
+  assert.ok(page.body.textContent.includes("Copy the current page or selected text as Markdown."));
   assert.ok(page.body.textContent.includes("No external page fallback."));
-  assert.ok(page.body.textContent.includes("Chrome Web Store submission: deferred"));
-  assert.ok(page.body.textContent.includes("Signed App Store submission: deferred"));
+  assert.ok(page.body.textContent.includes("Chrome Web Store — not published"));
+  assert.ok(html.includes("App Store — not published"));
   assert.ok(!/12ft\.io/i.test(html));
+  assert.ok(html.includes("--paper: #f5f4f0"));
+  assert.ok(html.includes("IBM Plex Mono"));
+  assert.ok(!/box-shadow/i.test(html));
+  assert.strictEqual(page.querySelectorAll("button[data-target]").length, 2);
+  for (const phrase of [
+    "agent-ready",
+    "one-click capture",
+    "made for agent context",
+    "the web, in clean markdown",
+    "want the engine today"
+  ]) {
+    assert.ok(!html.toLowerCase().includes(phrase), "marketing copy returned: " + phrase);
+  }
 
   const ids = new Set();
   for (const element of page.querySelectorAll("[id]")) {
