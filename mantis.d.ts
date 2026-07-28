@@ -24,6 +24,8 @@ export interface MantisImage {
    * articles, which render images in a list at the end instead.
    */
   position?: number;
+  /** DOM order shared by positioned images and tables at the same block anchor. */
+  flowOrder?: number;
 }
 
 export interface MantisTable {
@@ -39,6 +41,8 @@ export interface MantisTable {
    * maxBlocks, which are appended at the end instead.
    */
   position?: number;
+  /** DOM order shared by positioned tables and images at the same block anchor. */
+  flowOrder?: number;
 }
 
 export interface MantisInlineRun {
