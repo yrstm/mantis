@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Mantis turns rendered web pages into structured JSON and clean Markdown for agents. Try the browser extension preview or the local paste converter.">
+  <link rel="canonical" href="https://yrstm.github.io/mantis/">
   <title>Mantis</title>
   <style>
     :root {
@@ -231,6 +233,25 @@
     }
     .mt { margin-top: 18px; }
     .copyable { max-height: 92px; }
+    .extension-callout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 24px;
+      border: 1px solid #252b37;
+      border-radius: 10px;
+      padding: 22px;
+      color: #eef1f6;
+      background: #141821;
+    }
+    .extension-callout h2 { margin-bottom: 8px; }
+    .extension-callout p { margin: 0; color: #aab1be; }
+    .extension-callout .button {
+      border-color: #fff;
+      color: var(--ink);
+      background: #fff;
+      white-space: nowrap;
+    }
     footer {
       border-top: 1px solid var(--line);
       padding: 22px 0;
@@ -240,6 +261,7 @@
     @media (max-width: 860px) {
       .intro, .grid-2, .grid-3 { grid-template-columns: 1fr; }
       nav { display: none; }
+      .extension-callout { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -248,6 +270,7 @@
     <div class="wrap topbar">
       <div class="brand"><span class="mark">M</span><span>Mantis</span></div>
       <nav>
+        <a href="extension/">Extension</a>
         <a href="#package">Package</a>
         <a href="#compare">Compare</a>
         <a href="#paste">Paste converter</a>
@@ -264,7 +287,7 @@
         <p class="lead">Mantis is a small extraction library that turns rendered web content into clean Markdown for agents.</p>
         <p class="muted">It runs over the live DOM, so it works after client-side rendering and logged-in state. Nothing is uploaded by default.</p>
         <div class="actions">
-          <a class="button" href="#package">Use the package</a>
+          <a class="button" href="extension/">Meet the extension</a>
           <a class="button secondary" href="#paste">Try paste converter</a>
         </div>
         <div class="chips">
@@ -297,12 +320,22 @@ Requests must include a bearer token with the `billing:read` scope.</pre>
       </div>
     </section>
 
+    <section class="section">
+      <div class="extension-callout">
+        <div>
+          <h2>Mantis Extension</h2>
+          <p>Turn the rendered page or your current selection into agent-ready Markdown with one click. Chrome and Safari packages are in pre-release review.</p>
+        </div>
+        <a class="button" href="extension/">View the extension page →</a>
+      </div>
+    </section>
+
     <section class="section" id="package">
       <h2>Package</h2>
       <div class="grid-3">
         <div class="step">
-          <strong>1. Install</strong>
-          <pre>npm install @yrstm/mantis</pre>
+          <strong>1. Install a pinned build</strong>
+          <pre>npm install https://github.com/yrstm/mantis/archive/9e462696990449979b309886d3581dd3201c2b17.tar.gz</pre>
         </div>
         <div class="step">
           <strong>2. Extract</strong>
@@ -316,7 +349,7 @@ const article = Mantis.fromHTML(html, options);</pre>
 });</pre>
         </div>
       </div>
-      <p class="status">The npm package name is <code>@yrstm/mantis</code>. The source stays on GitHub.</p>
+      <p class="status">The package name is <code>@yrstm/mantis</code>, but it is not published to the npm registry yet. Use the pinned GitHub build above until the first registry release.</p>
     </section>
 
     <section class="section" id="compare">
@@ -416,6 +449,11 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
       <h2>Changelog</h2>
       <div class="changelog">
         <article class="change">
+          <time datetime="2026-07-28">2026-07-28</time>
+          <h3>Mantis Extension preview page</h3>
+          <p class="muted">Added a dedicated Chrome and Safari extension page with the capture flow, privacy boundary, current limitations, and honest pre-release availability.</p>
+        </article>
+        <article class="change">
           <time datetime="2026-07-23">2026-07-23</time>
           <h3>Images render at their original position</h3>
           <p class="muted">Markdown output now places content images where they appeared on the page, interleaved with prose and tables, instead of listing them at the end of the document. Captures without live DOM positions (vision pipeline, stored articles) keep the trailing list.</p>
@@ -483,7 +521,10 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
     <div class="wrap">Mantis is Apache-2.0 licensed. Source and package details are in the <a href="https://github.com/yrstm/mantis">GitHub repo</a>.</div>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/gh/yrstm/mantis@main/mantis.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/gh/yrstm/mantis@9e462696990449979b309886d3581dd3201c2b17/mantis.js"
+    integrity="sha384-e5eGewn5+9LLOiKn49ZY+ef7LxjdaIFXxpPPRzisJWQg5chimWnVWMl+hLQ518bk"
+    crossorigin="anonymous"></script>
   <script>
     const approxTokens = (text) => Math.round(text.length / 4);
     const copyExample = document.getElementById("copy-example").value;

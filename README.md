@@ -14,14 +14,17 @@ One file. Zero runtime dependencies. No network requests.
 
 ## Package
 
-The npm package name is `@yrstm/mantis`.
+The package name is `@yrstm/mantis`. It is not published to the npm registry yet, so install the
+current public build from its pinned GitHub commit:
 
 ```sh
-npm install @yrstm/mantis
+npm install https://github.com/yrstm/mantis/archive/9e462696990449979b309886d3581dd3201c2b17.tar.gz
 ```
 
 The official Mantis browser extension is packaged separately from this open-source library repo.
-The store link will be added here when it is ready.
+See the [Mantis Extension page](https://yrstm.github.io/mantis/extension/) for the capture flow,
+privacy boundary, current limitations, and release status. Store links will be added there when
+they are ready.
 
 ```js
 const article = Mantis.extract(document);

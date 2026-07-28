@@ -2,6 +2,7 @@
 "use strict";
 
 const assert = require("node:assert");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { JSDOM } = require("jsdom");
@@ -843,6 +844,51 @@ test("repository does not include the macOS capture tool", () => {
   assert.ok(!fs.existsSync(path.join(__dirname, "helpers/macos-screen-capture")));
   assert.ok(!pkg.files.some((entry) => entry.includes("macos-screen-capture")));
   assert.ok(!pkg.files.some((entry) => entry.includes("mantis-screen-capture")));
+});
+
+test("public extension page has a canonical URL and honest release status", () => {
+  const html = fs.readFileSync(path.join(__dirname, "docs", "extension", "index.html"), "utf8");
+  const page = new JSDOM(html).window.document;
+  assert.strictEqual(
+    page.querySelector('link[rel="canonical"]').getAttribute("href"),
+    "https://yrstm.github.io/mantis/extension/"
+  );
+  assert.ok(page.querySelector('meta[name="description"]').getAttribute("content"));
+  assert.ok(page.body.textContent.includes("No external page fallback."));
+  assert.ok(page.body.textContent.includes("Chrome Web Store submission: deferred"));
+  assert.ok(page.body.textContent.includes("Signed App Store submission: deferred"));
+  assert.ok(!/12ft\.io/i.test(html));
+
+  const ids = new Set();
+  for (const element of page.querySelectorAll("[id]")) {
+    assert.ok(!ids.has(element.id), "duplicate extension-page id: " + element.id);
+    ids.add(element.id);
+  }
+  for (const link of page.querySelectorAll('a[href^="#"]')) {
+    assert.ok(page.getElementById(link.getAttribute("href").slice(1)),
+      "missing extension-page anchor: " + link.getAttribute("href"));
+  }
+});
+
+test("public demo links the extension and pins a verified core build", () => {
+  const html = fs.readFileSync(path.join(__dirname, "docs", "index.html"), "utf8");
+  const readme = fs.readFileSync(path.join(__dirname, "README.md"), "utf8");
+  const page = new JSDOM(html).window.document;
+  assert.ok(page.querySelector('a[href="extension/"]'));
+
+  const script = page.querySelector('script[src*="cdn.jsdelivr.net/gh/yrstm/mantis@"]');
+  assert.ok(script, "pinned public Mantis script is present");
+  const match = /@([0-9a-f]{40})\/mantis\.js$/.exec(script.getAttribute("src"));
+  assert.ok(match, "public script URL uses a full immutable commit");
+  const archive = "https://github.com/yrstm/mantis/archive/" + match[1] + ".tar.gz";
+  assert.ok(html.includes(archive), "public install command uses the same commit");
+  assert.ok(readme.includes(archive), "README install command uses the same commit");
+
+  const integrity = "sha384-" + crypto.createHash("sha384")
+    .update(fs.readFileSync(path.join(__dirname, "mantis.js")))
+    .digest("base64");
+  assert.strictEqual(script.getAttribute("integrity"), integrity);
+  assert.strictEqual(script.getAttribute("crossorigin"), "anonymous");
 });
 
 /* ---------- run(): local copy, configured POST, configured fallback ---------- */

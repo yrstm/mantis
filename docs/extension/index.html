@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Mantis Extension turns the web page or selection you can see into clean, agent-ready Markdown in one click. Chrome and Safari release information.">
+  <meta name="theme-color" content="#10131a">
+  <link rel="canonical" href="https://yrstm.github.io/mantis/extension/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Mantis Extension — The web, in clean Markdown">
+  <meta property="og:description" content="Capture a rendered page or selection as structured Markdown for your agent.">
+  <meta property="og:url" content="https://yrstm.github.io/mantis/extension/">
+  <title>Mantis Extension — The web, in clean Markdown</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #12151c;
+      --muted: #5e6472;
+      --line: #dfe3eb;
+      --soft: #f3f5f9;
+      --paper: #ffffff;
+      --accent: #165dff;
+      --accent-dark: #0f45c4;
+      --accent-soft: #eaf0ff;
+      --night: #10131a;
+      --night-2: #181c25;
+      --night-3: #232936;
+      --lime: #c9f25f;
+      --warn: #9a5b00;
+      --max: 1160px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 84px;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 16px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); }
+
+    code {
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 1px 5px;
+      background: var(--soft);
+      font: 0.86em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .wrap {
+      width: min(var(--max), calc(100vw - 40px));
+      margin: 0 auto;
+    }
+
+    .site-header {
+      position: relative;
+      z-index: 10;
+      border-bottom: 1px solid rgba(18, 21, 28, 0.1);
+      background: rgba(255, 255, 255, 0.94);
+    }
+
+    .topbar {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 720;
+      letter-spacing: -0.01em;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--night);
+      font-size: 15px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .brand small {
+      margin-left: 2px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      font-size: 14px;
+    }
+
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    nav a:hover { color: var(--ink); }
+
+    .hero-shell {
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 82% 18%, rgba(22, 93, 255, 0.13), transparent 28rem),
+        linear-gradient(180deg, #fff 0%, #f7f9fd 100%);
+    }
+
+    .hero {
+      min-height: 680px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(380px, 0.92fr);
+      align-items: center;
+      gap: 64px;
+      padding: 76px 0 88px;
+    }
+
+    .eyebrow,
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 5px var(--accent-soft);
+    }
+
+    h1,
+    h2,
+    h3,
+    p { margin-top: 0; }
+
+    h1 {
+      max-width: 740px;
+      margin-bottom: 22px;
+      font-size: clamp(48px, 7vw, 78px);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+    }
+
+    h2 {
+      margin-bottom: 16px;
+      font-size: clamp(32px, 4vw, 48px);
+      line-height: 1.08;
+      letter-spacing: -0.035em;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 18px;
+      line-height: 1.3;
+      letter-spacing: -0.015em;
+    }
+
+    .lead {
+      max-width: 650px;
+      margin-bottom: 0;
+      color: #3f4653;
+      font-size: clamp(18px, 2vw, 21px);
+      line-height: 1.55;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 30px;
+    }
+
+    .button {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 9px 16px;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 8px 22px rgba(22, 93, 255, 0.18);
+    }
+
+    .button:hover { background: var(--accent-dark); }
+
+    .button.secondary {
+      border-color: var(--line);
+      color: var(--ink);
+      background: #fff;
+      box-shadow: none;
+    }
+
+    .button.secondary:hover { border-color: #bcc3d0; }
+
+    .trust-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      margin: 24px 0 0;
+      padding: 0;
+      color: var(--muted);
+      font-size: 13px;
+      list-style: none;
+    }
+
+    .trust-row li {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .trust-row li::before {
+      content: "✓";
+      color: var(--accent-dark);
+      font-weight: 800;
+    }
+
+    .browser {
+      position: relative;
+      min-height: 478px;
+      overflow: hidden;
+      border: 1px solid #cfd5e0;
+      border-radius: 18px;
+      background: #edf0f5;
+      box-shadow: 0 30px 80px rgba(32, 42, 65, 0.18);
+    }
+
+    .browser-bar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 14px;
+      border-bottom: 1px solid #d6dae2;
+      background: #fff;
+    }
+
+    .browser-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #c6cad3;
+    }
+
+    .address {
+      height: 24px;
+      flex: 1;
+      margin-left: 6px;
+      border-radius: 6px;
+      color: #838997;
+      background: #f0f2f6;
+      font: 10px/24px ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-align: center;
+    }
+
+    .browser-body {
+      min-height: 434px;
+      padding: 36px 30px;
+      background:
+        linear-gradient(90deg, #e4e8ef 20%, transparent 20%) 0 0 / 100% 100% no-repeat,
+        #f8f9fb;
+    }
+
+    .page-copy {
+      width: 68%;
+      margin-left: 25%;
+    }
+
+    .page-line {
+      height: 9px;
+      margin-bottom: 12px;
+      border-radius: 99px;
+      background: #d7dce5;
+    }
+
+    .page-line.title {
+      width: 76%;
+      height: 20px;
+      margin-bottom: 22px;
+      background: #bfc6d2;
+    }
+
+    .page-line.short { width: 58%; }
+    .page-line.mid { width: 82%; }
+
+    .capture-card {
+      position: absolute;
+      right: 20px;
+      bottom: 20px;
+      width: min(342px, calc(100% - 40px));
+      overflow: hidden;
+      border: 1px solid var(--night-3);
+      border-radius: 13px;
+      color: #eceff5;
+      background: var(--night-2);
+      box-shadow: 0 20px 52px rgba(0, 0, 0, 0.38);
+    }
+
+    .capture-head {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 14px;
+    }
+
+    .capture-logo {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 5px;
+      color: var(--night);
+      background: var(--lime);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .capture-title {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .capture-mode {
+      color: #858c99;
+      font-size: 11px;
+    }
+
+    .markdown {
+      position: relative;
+      min-height: 190px;
+      padding: 16px 15px 58px;
+      border-top: 1px solid var(--night-3);
+      border-bottom: 1px solid var(--night-3);
+      background: var(--night);
+      font: 11px/1.75 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .md-row { color: #979eab; }
+    .md-row.heading { color: #f2f4f8; }
+    .md-row .syntax { color: #666e7c; }
+    .md-gap { height: 8px; }
+
+    .copy-control {
+      position: absolute;
+      right: 13px;
+      bottom: 13px;
+      min-width: 74px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: 7px;
+      color: #11140d;
+      background: var(--lime);
+      font: 700 11px/1 system-ui, sans-serif;
+    }
+
+    .capture-meta {
+      padding: 11px 14px;
+      color: #777f8d;
+      font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .section {
+      padding: 100px 0;
+    }
+
+    .section.soft { background: var(--soft); }
+
+    .section-intro {
+      max-width: 710px;
+      margin-bottom: 42px;
+    }
+
+    .section-intro p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .steps,
+    .features,
+    .status-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .features { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .step,
+    .feature,
+    .status-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 24px;
+      background: #fff;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 28px;
+      border-radius: 9px;
+      color: var(--accent-dark);
+      background: var(--accent-soft);
+      font-weight: 800;
+    }
+
+    .step p,
+    .feature p,
+    .status-card p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .feature-icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 22px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: var(--accent);
+      background: #fff;
+      font-weight: 800;
+    }
+
+    .privacy-shell {
+      color: #eef1f6;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(22, 93, 255, 0.32), transparent 28rem),
+        var(--night);
+    }
+
+    .privacy-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(380px, 1.08fr);
+      align-items: start;
+      gap: 72px;
+    }
+
+    .privacy-shell .section-label { color: #8db0ff; }
+    .privacy-shell h2 { color: #fff; }
+    .privacy-shell .section-intro p { color: #aeb5c2; }
+
+    .privacy-list {
+      display: grid;
+      gap: 12px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .privacy-list li {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 10px;
+      color: #c8ced8;
+    }
+
+    .privacy-list li::before {
+      content: "✓";
+      color: var(--lime);
+      font-weight: 900;
+    }
+
+    .release-gate {
+      border: 1px solid #303746;
+      border-radius: 15px;
+      padding: 26px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .release-gate .gate-label {
+      display: inline-flex;
+      margin-bottom: 18px;
+      border: 1px solid #4d576b;
+      border-radius: 999px;
+      padding: 4px 9px;
+      color: #d8deea;
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .release-gate h3 {
+      color: #fff;
+      font-size: 22px;
+    }
+
+    .release-gate p {
+      margin-bottom: 0;
+      color: #aeb5c2;
+    }
+
+    .status-card {
+      min-height: 210px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .platform {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 750;
+    }
+
+    .platform-icon {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      color: #fff;
+      background: var(--night);
+      font-size: 12px;
+    }
+
+    .state {
+      border-radius: 999px;
+      padding: 4px 9px;
+      color: var(--warn);
+      background: #fff2dc;
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .status-card ul {
+      margin: auto 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .status-card li + li { margin-top: 5px; }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 18px;
+      border: 1px solid #cbd7f6;
+      border-radius: 12px;
+      padding: 16px;
+      color: #38435a;
+      background: #f4f7ff;
+    }
+
+    .notice strong { color: var(--ink); }
+
+    .faq {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 26px 48px;
+    }
+
+    .faq article {
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+    }
+
+    .faq p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .final-cta {
+      padding: 70px 0;
+      color: #fff;
+      background: var(--accent);
+    }
+
+    .final-cta .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 32px;
+    }
+
+    .final-cta h2 {
+      max-width: 680px;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .final-cta p {
+      margin-bottom: 0;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .final-cta .button {
+      flex: none;
+      border-color: #fff;
+      color: var(--accent-dark);
+      background: #fff;
+      box-shadow: none;
+    }
+
+    footer {
+      padding: 26px 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .footer-row a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    @media (max-width: 920px) {
+      .hero {
+        min-height: auto;
+        grid-template-columns: 1fr;
+        gap: 54px;
+        padding: 64px 0 72px;
+      }
+
+      .browser { max-width: 610px; }
+      .privacy-grid { grid-template-columns: 1fr; gap: 38px; }
+      .steps, .features { grid-template-columns: 1fr; }
+      .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 700px) {
+      .wrap { width: min(var(--max), calc(100vw - 28px)); }
+      nav a:not(.nav-library) { display: none; }
+      .brand small { display: none; }
+      h1 { font-size: clamp(44px, 15vw, 64px); }
+      .section { padding: 76px 0; }
+      .features, .status-grid, .faq { grid-template-columns: 1fr; }
+      .browser-body { padding: 28px 20px; }
+      .page-copy { width: 82%; margin-left: 14%; }
+      .capture-card { right: 12px; bottom: 12px; width: calc(100% - 24px); }
+      .final-cta .wrap { align-items: flex-start; flex-direction: column; }
+      .footer-row { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap topbar">
+      <a class="brand" href="../">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span>Mantis</span>
+        <small>Extension</small>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#how">How it works</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#availability">Availability</a>
+        <a class="nav-library" href="../">Mantis library</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero-shell">
+      <section class="wrap hero" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">Chrome + Safari · pre-release</p>
+          <h1 id="hero-title">The web, in clean Markdown.</h1>
+          <p class="lead">Mantis Extension turns the rendered page—or just your selection—into structured Markdown you can paste straight into an agent.</p>
+          <div class="actions">
+            <a class="button" href="#availability">See release status <span aria-hidden="true">→</span></a>
+            <a class="button secondary" href="#how">See how it works</a>
+          </div>
+          <ul class="trust-row" aria-label="Product principles">
+            <li>No account</li>
+            <li>User-triggered</li>
+            <li>No external fallback</li>
+          </ul>
+        </div>
+
+        <div class="browser" role="img" aria-label="Illustration of Mantis capturing a rendered article into a Markdown preview">
+          <div class="browser-bar" aria-hidden="true">
+            <span class="browser-dot"></span>
+            <span class="browser-dot"></span>
+            <span class="browser-dot"></span>
+            <span class="address">docs.example.com/guide</span>
+          </div>
+          <div class="browser-body" aria-hidden="true">
+            <div class="page-copy">
+              <div class="page-line title"></div>
+              <div class="page-line"></div>
+              <div class="page-line mid"></div>
+              <div class="page-line"></div>
+              <div class="page-line short"></div>
+              <div class="page-line"></div>
+              <div class="page-line mid"></div>
+            </div>
+          </div>
+          <div class="capture-card" aria-hidden="true">
+            <div class="capture-head">
+              <span class="capture-logo">M</span>
+              <span class="capture-title">Copied to clipboard</span>
+              <span class="capture-mode">Page</span>
+            </div>
+            <div class="markdown">
+              <div class="md-row heading"><span class="syntax">#</span> Build a reliable agent workflow</div>
+              <div class="md-gap"></div>
+              <div class="md-row">Good context starts with the page</div>
+              <div class="md-row">the user actually rendered.</div>
+              <div class="md-gap"></div>
+              <div class="md-row heading"><span class="syntax">##</span> What Mantis keeps</div>
+              <div class="md-row"><span class="syntax">-</span> headings, links, images and tables</div>
+              <div class="md-row"><span class="syntax">-</span> source metadata and confidence</div>
+              <span class="copy-control">✓ Copied</span>
+            </div>
+            <div class="capture-meta">docs · 0.89 confidence · ~1,240 tokens</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="section" id="how">
+      <div class="wrap">
+        <div class="section-intro">
+          <p class="section-label">One-click capture</p>
+          <h2>From busy page to useful context.</h2>
+          <p>Mantis works on the DOM already rendered in your tab. It keeps the article-shaped content and leaves navigation, banners and repeated chrome behind.</p>
+        </div>
+        <div class="steps">
+          <article class="step">
+            <span class="step-number">1</span>
+            <h3>Open the page</h3>
+            <p>Use the content already visible in your browser, including client-rendered pages and signed-in state.</p>
+          </article>
+          <article class="step">
+            <span class="step-number">2</span>
+            <h3>Click Mantis</h3>
+            <p>Capture the active selection when there is one; otherwise extract the page's main readable content.</p>
+          </article>
+          <article class="step">
+            <span class="step-number">3</span>
+            <h3>Paste the Markdown</h3>
+            <p>Preview the result, see confidence and warnings, then paste structured context into the tool you choose.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section soft">
+      <div class="wrap">
+        <div class="section-intro">
+          <p class="section-label">Made for agent context</p>
+          <h2>Structure without the HTML weight.</h2>
+          <p>The extension uses the open-source Mantis extraction engine and packages it into a focused browser workflow.</p>
+        </div>
+        <div class="features">
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">DOM</span>
+            <h3>Rendered-page capture</h3>
+            <p>Works after JavaScript rendering instead of fetching a second, potentially different copy.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">⌁</span>
+            <h3>Selection aware</h3>
+            <p>A useful selection takes priority, making it easy to capture only the passage you need.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">#</span>
+            <h3>Markdown structure</h3>
+            <p>Preserves headings, lists, quotes, code, links, content images and data tables in reading order.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">i</span>
+            <h3>Context signals</h3>
+            <p>Adds source metadata, capture mode, confidence, warnings, hashes and a rough token estimate.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">□</span>
+            <h3>In-page preview</h3>
+            <p>Shows a small isolated panel on the page, with a manual-copy fallback when clipboard access is blocked.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">A</span>
+            <h3>Agent safety marker</h3>
+            <p>Marks captured web content as untrusted data so downstream tools can keep it separate from instructions.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section privacy-shell" id="privacy">
+      <div class="wrap privacy-grid">
+        <div class="section-intro">
+          <p class="section-label">Privacy by boundary</p>
+          <h2>The core capture stays in your browser.</h2>
+          <p>The normal one-click path needs no Mantis account, analytics service or Mantis backend.</p>
+          <ul class="privacy-list">
+            <li>Runs only when you click the browser action.</li>
+            <li>Reads the active HTTP(S) tab or selection for that capture.</li>
+            <li>Converts locally and writes the result to your clipboard.</li>
+            <li>Ships its extraction code inside the extension package.</li>
+          </ul>
+        </div>
+        <aside class="release-gate" aria-labelledby="privacy-gate-title">
+          <span class="gate-label">Verified privacy boundary</span>
+          <h3 id="privacy-gate-title">No external page fallback.</h3>
+          <p>The remote low-confidence fallback and its third-party host permission were removed before release. Current Chrome and Safari builds use the extractor packaged with the extension and do not send page URLs or page content to Mantis or a proxy service.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section" id="availability">
+      <div class="wrap">
+        <div class="section-intro">
+          <p class="section-label">Availability</p>
+          <h2>Built for Chrome and Safari. Not in stores yet.</h2>
+          <p>The browser packages exist and build locally. Store submission, signing and final clean-profile release QA are intentionally deferred.</p>
+        </div>
+        <div class="status-grid">
+          <article class="status-card">
+            <div class="status-head">
+              <div class="platform"><span class="platform-icon" aria-hidden="true">C</span> Chrome &amp; Chromium</div>
+              <span class="state">Pre-release</span>
+            </div>
+            <p>The Manifest V3 package builds and can be loaded unpacked for internal testing.</p>
+            <ul>
+              <li>Chrome Web Store submission: deferred</li>
+              <li>Public install URL: not available yet</li>
+              <li>Local-only privacy boundary: verified</li>
+            </ul>
+          </article>
+          <article class="status-card">
+            <div class="status-head">
+              <div class="platform"><span class="platform-icon" aria-hidden="true">S</span> Safari for macOS</div>
+              <span class="state">Pre-release</span>
+            </div>
+            <p>The Safari Web Extension wrapper is generated from the same extension resources.</p>
+            <ul>
+              <li>Signed App Store submission: deferred</li>
+              <li>Public install URL: not available yet</li>
+              <li>Unsigned local wrapper build: verified</li>
+            </ul>
+          </article>
+        </div>
+        <div class="notice">
+          <span aria-hidden="true">ⓘ</span>
+          <div><strong>This is the canonical extension page.</strong> Store distribution is planned for a later release; real Chrome and Safari install buttons will replace this status after their listings are approved.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section soft" id="limits">
+      <div class="wrap">
+        <div class="section-intro">
+          <p class="section-label">Know the edges</p>
+          <h2>What the first release will—and will not—do.</h2>
+          <p>Mantis is a heuristic content extractor, not a verbatim archive or a browser automation service.</p>
+        </div>
+        <div class="faq">
+          <article>
+            <h3>Does it capture every page?</h3>
+            <p>No. Browser-internal pages, extension stores and other restricted URLs cannot be injected. Unusual layouts can produce partial or low-confidence output.</p>
+          </article>
+          <article>
+            <h3>Does it include hidden or unloaded content?</h3>
+            <p>It captures the DOM currently rendered in the tab. Content that has not loaded, lives in inaccessible frames or is hidden is outside that snapshot.</p>
+          </article>
+          <article>
+            <h3>Are screenshots and diagrams understood?</h3>
+            <p>The browser extension keeps image references and alt text; it does not run vision over diagrams. Image/OCR capture is a separate Mantis workflow.</p>
+          </article>
+          <article>
+            <h3>Is captured text automatically safe for an agent?</h3>
+            <p>No web content is inherently trusted. Mantis adds a safety marker, but the receiving agent must still treat the Markdown as data rather than instructions.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta">
+      <div class="wrap">
+        <div>
+          <h2>Want the engine today?</h2>
+          <p>Explore the open-source Mantis library, its test corpus and the live paste converter.</p>
+        </div>
+        <a class="button" href="../">Open the Mantis library page <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-row">
+      <span>Mantis Extension · pre-release information</span>
+      <span><a href="../">Mantis library</a> · <a href="https://github.com/yrstm/mantis">GitHub</a> · <a href="#privacy">Privacy</a></span>
+    </div>
+  </footer>
+</body>
+</html>
