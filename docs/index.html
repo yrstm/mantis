@@ -416,6 +416,11 @@ Requests must include a bearer token with the `billing:read` scope.</textarea>
       <h2>Changelog</h2>
       <div class="changelog">
         <article class="change">
+          <time datetime="2026-07-23">2026-07-23</time>
+          <h3>Images render at their original position</h3>
+          <p class="muted">Markdown output now places content images where they appeared on the page, interleaved with prose and tables, instead of listing them at the end of the document. Captures without live DOM positions (vision pipeline, stored articles) keep the trailing list.</p>
+        </article>
+        <article class="change">
           <time datetime="2026-06-26">2026-06-26</time>
           <h3>macOS capture repo split</h3>
           <p class="muted">Moved the macOS screen capture helper out of this library repo and into <code>yrstm/mantis-capture</code>, leaving Mantis as the extraction and normalization library only.</p>

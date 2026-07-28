@@ -597,7 +597,8 @@
         src: src,
         alt: attr(el, "alt"),
         title: attr(el, "title"),
-        source: { selector: selectorFor(el) }
+        source: { selector: selectorFor(el) },
+        __el: el
       });
     }
     return out;
@@ -653,24 +654,51 @@
   // tail. Tables that are not plain data, or whose position falls beyond the
   // captured blocks (e.g. truncated by maxBlocks), get no position and fall back
   // to being appended at the end, preserving previous behavior and data.
-  function positionTables(blocks, tables, scope) {
-    for (var t = 0; t < (tables ? tables.length : 0); t++) {
-      var el = tables[t].__el;
-      if (el && isDataTableEl(el, scope)) {
-        var anchor = -1;
-        for (var b = 0; b < blocks.length; b++) {
-          var bel = blocks[b].__el;
-          if (!bel) continue;
-          var rel = bel.compareDocumentPosition(el);
-          // FOLLOWING (4): table comes after this block; CONTAINS (8): block is
-          // inside the table (skip those, they are not real preceding blocks).
-          if ((rel & 4) && !(rel & 8)) anchor = b;
-        }
-        tables[t].position = anchor;
-      }
-      delete tables[t].__el;
+  // Index of the last captured block that precedes `el` in document order, or
+  // -1 when `el` leads the document.
+  function anchorIndex(blocks, el) {
+    var anchor = -1;
+    for (var b = 0; b < blocks.length; b++) {
+      var bel = blocks[b].__el;
+      if (!bel) continue;
+      var rel = bel.compareDocumentPosition(el);
+      // FOLLOWING (4): el comes after this block; CONTAINS (8): the block is
+      // inside el (skip those, they are not real preceding blocks).
+      if ((rel & 4) && !(rel & 8)) anchor = b;
     }
-    for (var k = 0; k < blocks.length; k++) delete blocks[k].__el;
+    return anchor;
+  }
+
+  // Position tables and images together. `position` anchors each item after a
+  // block; `flowOrder` preserves DOM order when unlike items share that anchor.
+  // Stored or vision articles without either value keep the trailing fallback.
+  function positionFlowItems(blocks, tables, images, scope) {
+    var flow = [];
+    var sequence = 0;
+    for (var t = 0; t < (tables ? tables.length : 0); t++) {
+      var tableEl = tables[t].__el;
+      if (tableEl && isDataTableEl(tableEl, scope)) {
+        flow.push({ item: tables[t], el: tableEl, sequence: sequence++ });
+      }
+    }
+    for (var m = 0; m < (images ? images.length : 0); m++) {
+      var imageEl = images[m].__el;
+      if (imageEl) flow.push({ item: images[m], el: imageEl, sequence: sequence++ });
+    }
+    flow.sort(function (a, b) {
+      if (a.el === b.el) return a.sequence - b.sequence;
+      var rel = a.el.compareDocumentPosition(b.el);
+      if (rel & 1) return a.sequence - b.sequence; // disconnected: stable fallback
+      if (rel & 4) return -1; // b follows a
+      if (rel & 2) return 1;  // b precedes a
+      return a.sequence - b.sequence;
+    });
+    for (var f = 0; f < flow.length; f++) {
+      flow[f].item.position = anchorIndex(blocks, flow[f].el);
+      flow[f].item.flowOrder = f;
+    }
+    for (var kt = 0; kt < (tables ? tables.length : 0); kt++) delete tables[kt].__el;
+    for (var km = 0; km < (images ? images.length : 0); km++) delete images[km].__el;
   }
 
   function meta(doc, name) {
@@ -828,15 +856,20 @@
         droppedBlockCount: blockStats.droppedBlocks || 0,
         maxTablesHit: !!tableStats.maxTablesHit,
         fallbackScopeUsed: fallbackScope,
-        unpositionedTables: 0
+        unpositionedTables: 0,
+        unpositionedImages: 0
       }
     };
-    // anchor data tables to their position in the block flow; strips the
-    // transient DOM references off blocks and tables before any serialization
-    positionTables(article.blocks, article.tables, scope || doc.body);
-    // tables that were not spliced into the flow (layout/nested) are appended
+    // anchor data tables and content images to their position in the block
+    // flow; strips the transient DOM references before any serialization
+    positionFlowItems(article.blocks, article.tables, article.images, scope || doc.body);
+    for (var kb = 0; kb < article.blocks.length; kb++) delete article.blocks[kb].__el;
+    // tables and images that were not spliced into the flow are appended
     for (var ut = 0; ut < article.tables.length; ut++) {
       if (typeof article.tables[ut].position !== "number") article.diagnostics.unpositionedTables++;
+    }
+    for (var ui = 0; ui < article.images.length; ui++) {
+      if (typeof article.images[ui].position !== "number") article.diagnostics.unpositionedImages++;
     }
     article.textHash = hashString(article.text);
     article.contentHash = hashString(JSON.stringify({
@@ -998,55 +1031,109 @@
     if (!blocks.length && article.paragraphs) {
       blocks = article.paragraphs.map(function (text) { return { type: "paragraph", text: text }; });
     }
-    // Data tables carry a `position` (set during extraction): the index of the
-    // block they follow, or -1 to lead the document. They are spliced into the
-    // flow below. Tables without a position (layout/nested tables, vision-pipeline
-    // tables, or tables truncated past maxBlocks) are appended at the end, which
-    // preserves prior behavior and never drops data.
+    // Data tables and content images carry a `position` (set during
+    // extraction): the index of the block they follow, or -1 to lead the
+    // document. They are spliced into the flow below. Items without a position
+    // (layout/nested tables, vision-pipeline captures, stored articles) are
+    // appended at the end, which preserves prior behavior and never drops data.
+    function validFlowPosition(position) {
+      return typeof position === "number" && isFinite(position) &&
+        Math.floor(position) === position && position >= -1 && position < blocks.length;
+    }
+    function validFlowOrder(order) {
+      return typeof order === "number" && isFinite(order);
+    }
+    var flowAt = {};
+    var preFlow = [];
+    var flowSequence = 0;
+    function queueFlow(position, kind, index, order) {
+      var entry = {
+        kind: kind,
+        index: index,
+        order: validFlowOrder(order) ? order : null,
+        sequence: flowSequence++
+      };
+      if (position < 0) preFlow.push(entry);
+      else (flowAt[position] = flowAt[position] || []).push(entry);
+    }
+    function sortFlow(entries) {
+      entries.sort(function (a, b) {
+        if (a.order !== null && b.order !== null && a.order !== b.order) return a.order - b.order;
+        if (a.order !== null && b.order === null) return -1;
+        if (a.order === null && b.order !== null) return 1;
+        return a.sequence - b.sequence;
+      });
+    }
     var renderTables = options.tables !== false;
     var allTables = article.tables || [];
-    var tablesAt = {};
-    var preTables = [];
     var splicedTable = [];
     if (renderTables) {
       for (var ti = 0; ti < allTables.length; ti++) {
         var pos = allTables[ti].position;
-        if (typeof pos !== "number") continue;
+        if (!validFlowPosition(pos)) continue;
         splicedTable[ti] = true;
-        if (pos < 0) preTables.push(ti);
-        else (tablesAt[pos] = tablesAt[pos] || []).push(ti);
+        queueFlow(pos, "table", ti, allTables[ti].flowOrder);
       }
+    }
+    var renderImages = images === "alt" || images === "links";
+    var allImages = renderImages ? (article.images || []) : [];
+    var splicedImage = [];
+    for (var mi = 0; mi < allImages.length; mi++) {
+      var ipos = allImages[mi].position;
+      // Invalid anchors on hand-edited or truncated articles fall back.
+      if (!validFlowPosition(ipos)) continue;
+      splicedImage[mi] = true;
+      queueFlow(ipos, "image", mi, allImages[mi].flowOrder);
+    }
+    sortFlow(preFlow);
+    for (var flowKey in flowAt) {
+      if (Object.prototype.hasOwnProperty.call(flowAt, flowKey)) sortFlow(flowAt[flowKey]);
+    }
+    function imageMarkdown(img) {
+      var alt = escapeInline(img.alt || "image");
+      var dest = linkDestination(img.src);
+      return images === "alt" ? "![" + alt + "](" + dest + ")" : "[" + alt + "](" + dest + ")";
     }
     var lead = true; // the document lead counts as a section lead
     // a table directly under a heading is that section's lead content
     var flushedUpTo = -1;
-    function flushTablesThrough(idx) {
+    function flushInlineThrough(idx) {
       for (var a = flushedUpTo + 1; a <= idx; a++) {
-        var here = tablesAt[a];
+        var here = flowAt[a];
         if (!here) continue;
         for (var h = 0; h < here.length; h++) {
-          add(tableMarkdown(allTables[here[h]]), lead ? 2 : 3);
-          lead = false;
+          if (here[h].kind === "table") {
+            add(tableMarkdown(allTables[here[h].index]), lead ? 2 : 3);
+            lead = false;
+          } else {
+            // Images keep image priority, so the outline budget still sheds
+            // them first; they do not consume `lead`.
+            add(imageMarkdown(allImages[here[h].index]), 4);
+          }
         }
       }
       flushedUpTo = idx;
     }
-    for (var pt = 0; pt < preTables.length; pt++) {
-      add(tableMarkdown(allTables[preTables[pt]]), 2);
-      lead = false;
+    for (var pf = 0; pf < preFlow.length; pf++) {
+      if (preFlow[pf].kind === "table") {
+        add(tableMarkdown(allTables[preFlow[pf].index]), 2);
+        lead = false;
+      } else {
+        add(imageMarkdown(allImages[preFlow[pf].index]), 4);
+      }
     }
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
       // the page H1 usually repeats the title; emit it once
       var dupH1 = i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title;
       if (dupH1) {
-        flushTablesThrough(i);
+        flushInlineThrough(i);
         continue;
       }
       if (b.type === "heading") {
         add(HASHES[Math.min(Math.max(b.level || 1, 1), 6) - 1] + " " + inlineMarkdown(b), 1);
         lead = true;
-        flushTablesThrough(i);
+        flushInlineThrough(i);
         continue;
       }
       var prio = lead ? 2 : 3;
@@ -1065,7 +1152,7 @@
       } else {
         add(escapeLeader(inlineMarkdown(b)), prio);
       }
-      flushTablesThrough(i);
+      flushInlineThrough(i);
     }
     if (renderTables) {
       // fallback: tables with no inline position go at the end (as before)
@@ -1073,13 +1160,11 @@
         if (!splicedTable[tf]) add(tableMarkdown(allTables[tf]), 3);
       }
     }
-    if (images === "alt" || images === "links") {
-      var imgs = article.images || [];
+    if (renderImages) {
+      // fallback: images with no inline position go at the end (as before)
       var rendered = [];
-      for (var m = 0; m < imgs.length; m++) {
-        var alt = escapeInline(imgs[m].alt || "image");
-        var dest = linkDestination(imgs[m].src);
-        rendered.push(images === "alt" ? "![" + alt + "](" + dest + ")" : "[" + alt + "](" + dest + ")");
+      for (var m = 0; m < allImages.length; m++) {
+        if (!splicedImage[m]) rendered.push(imageMarkdown(allImages[m]));
       }
       if (rendered.length) add(rendered.join("\n"), 4);
     }

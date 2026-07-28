@@ -652,6 +652,7 @@ test("extract reports machine-readable capture-completeness diagnostics", () => 
   assert.strictEqual(clean.diagnostics.maxBlocksHit, false);
   assert.strictEqual(clean.diagnostics.droppedBlockCount, 0);
   assert.strictEqual(clean.diagnostics.unpositionedTables, 0);
+  assert.strictEqual(clean.diagnostics.unpositionedImages, 0);
   assert.ok(!clean.warnings.includes("blocks_truncated"));
 });
 test("toMarkdown leaves layout tables out of the prose flow", () => {
@@ -664,6 +665,130 @@ test("toMarkdown leaves layout tables out of the prose flow", () => {
   const art = Mantis.extract(doc);
   // a layout table wrapping a paragraph must not be spliced inline
   assert.strictEqual(art.tables[0].position, undefined, "layout table is not given a flow position");
+});
+test("toMarkdown renders content images at their original position in the prose", () => {
+  const doc = new JSDOM(`<!doctype html><html><body><article>
+    <h1>Field Notes</h1>
+    <p>Opening paragraph with enough text to clear the extraction length floor.</p>
+    <figure><img src="/shore.jpg" alt="Waves at the shore" width="800" height="600"></figure>
+    <p>Trailing paragraph with sufficient length to be retained in the output.</p>
+  </article></body></html>`, { url: "https://example.com/notes" }).window.document;
+  const art = Mantis.extract(doc);
+  assert.strictEqual(typeof art.images[0].position, "number", "content image gets a flow position");
+  assert.strictEqual(art.diagnostics.unpositionedImages, 0);
+  const md = Mantis.toMarkdown(art, { images: "alt" });
+  const img = md.indexOf("![Waves at the shore](https://example.com/shore.jpg)");
+  assert.ok(img > -1, "image is rendered");
+  assert.ok(md.indexOf("Opening paragraph") < img, "image follows the paragraph before it");
+  assert.ok(img < md.indexOf("Trailing paragraph"), "image precedes the paragraph after it");
+});
+test("toMarkdown preserves image and table DOM order at a shared block anchor", () => {
+  function render(middle) {
+    const doc = new JSDOM(`<!doctype html><html><body><article>
+      <h1>Mixed Flow</h1>
+      <p>Opening paragraph with enough text to clear the extraction length floor.</p>
+      ${middle}
+      <p>Trailing paragraph with sufficient length to be retained in the output.</p>
+    </article></body></html>`, { url: "https://example.com/mixed" }).window.document;
+    const article = Mantis.extract(doc);
+    return {
+      article,
+      markdown: Mantis.toMarkdown(article, { images: "alt" })
+    };
+  }
+
+  const image = `<figure><img src="/flow.jpg" alt="Flow image" width="800" height="600"></figure>`;
+  const table = `<table><thead><tr><th>Item</th><th>Value</th></tr></thead>
+    <tbody><tr><td>Alpha</td><td>One</td></tr></tbody></table>`;
+
+  const imageFirst = render(image + table);
+  assert.strictEqual(imageFirst.article.images[0].position, imageFirst.article.tables[0].position,
+    "adjacent image and table share a block anchor");
+  assert.ok(imageFirst.markdown.indexOf("![Flow image]") < imageFirst.markdown.indexOf("| Item | Value |"),
+    "image before table in the DOM stays before it in Markdown");
+
+  const tableFirst = render(table + image);
+  assert.strictEqual(tableFirst.article.images[0].position, tableFirst.article.tables[0].position,
+    "reverse-order image and table share a block anchor");
+  assert.ok(tableFirst.markdown.indexOf("| Item | Value |") < tableFirst.markdown.indexOf("![Flow image]"),
+    "table before image in the DOM stays before it in Markdown");
+});
+test("toMarkdown sends invalid image and table positions to the trailing fallback", () => {
+  const invalidPositions = [0.5, NaN, -2, 2, Infinity, -Infinity];
+  for (const position of invalidPositions) {
+    const markdown = Mantis.toMarkdown({
+      title: "Stored",
+      blocks: [
+        { type: "paragraph", text: "First stored paragraph." },
+        { type: "paragraph", text: "Second stored paragraph." }
+      ],
+      tables: [{
+        caption: "",
+        headers: ["Item", "Value"],
+        rows: [["Alpha", "One"]],
+        position
+      }],
+      images: [{
+        src: "https://example.com/fallback.png",
+        alt: "Fallback image",
+        position
+      }]
+    }, { images: "alt" });
+    const tail = markdown.indexOf("Second stored paragraph.");
+    assert.ok(tail < markdown.indexOf("| Item | Value |"),
+      `table position ${String(position)} falls back after the prose`);
+    assert.ok(tail < markdown.indexOf("![Fallback image]"),
+      `image position ${String(position)} falls back after the prose`);
+  }
+});
+test("toMarkdown renders a leading image before the first paragraph", () => {
+  const doc = new JSDOM(`<!doctype html><html><body><article>
+    <figure><img src="/hero.jpg" alt="Hero shot" width="1200" height="700"></figure>
+    <h1>Gallery Opener</h1>
+    <p>First paragraph with enough text to clear the extraction length floor.</p>
+    <p>Second paragraph with sufficient length to be retained in the output.</p>
+  </article></body></html>`, { url: "https://example.com/g" }).window.document;
+  const art = Mantis.extract(doc);
+  assert.strictEqual(art.images[0].position, -1, "image before all blocks anchors at -1");
+  const md = Mantis.toMarkdown(art, { images: "alt" });
+  const img = md.indexOf("![Hero shot](https://example.com/hero.jpg)");
+  assert.ok(img > -1 && img < md.indexOf("First paragraph"), "image leads the prose");
+});
+test("toMarkdown renders an image between the title heading and the first paragraph", () => {
+  const doc = new JSDOM(`<!doctype html><html><body><article>
+    <h1>Gallery Opener</h1>
+    <figure><img src="/hero.jpg" alt="Hero shot" width="1200" height="700"></figure>
+    <p>First paragraph with enough text to clear the extraction length floor.</p>
+    <p>Second paragraph with sufficient length to be retained in the output.</p>
+  </article></body></html>`, { url: "https://example.com/g2" }).window.document;
+  const art = Mantis.extract(doc);
+  assert.strictEqual(art.images[0].position, 0, "image anchors after the heading block");
+  const md = Mantis.toMarkdown(art, { images: "alt" });
+  const img = md.indexOf("![Hero shot](https://example.com/hero.jpg)");
+  assert.ok(img > -1 && img < md.indexOf("First paragraph"), "image stays ahead of the prose");
+});
+test("toMarkdown keeps unpositioned images in a trailing list", () => {
+  const md = Mantis.toMarkdown({
+    title: "Stored",
+    blocks: [
+      { type: "paragraph", text: "First stored paragraph." },
+      { type: "paragraph", text: "Second stored paragraph." }
+    ],
+    images: [{ src: "https://example.com/old.png", alt: "Old image" }]
+  }, { images: "alt" });
+  assert.ok(md.indexOf("Second stored paragraph.") < md.indexOf("![Old image](https://example.com/old.png)"),
+    "image without a position falls back to the document tail");
+});
+test("extract strips transient DOM references from images", () => {
+  const doc = new JSDOM(`<!doctype html><html><body><article>
+    <h1>Clean JSON</h1>
+    <p>Paragraph with enough text to clear the extraction length floor here.</p>
+    <figure><img src="/pic.jpg" alt="Pic" width="640" height="480"></figure>
+  </article></body></html>`, { url: "https://example.com/j" }).window.document;
+  const art = Mantis.extract(doc);
+  assert.ok(!("__el" in art.images[0]), "no __el left on images");
+  assert.ok(art.blocks.every((b) => !("__el" in b)), "no __el left on blocks");
+  JSON.stringify(art); // must not throw on circular DOM references
 });
 test("toMarkdown still renders stored articles without runs", () => {
   const md = Mantis.toMarkdown({

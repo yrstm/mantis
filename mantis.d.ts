@@ -17,6 +17,15 @@ export interface MantisImage {
   alt: string;
   title: string;
   source: MantisSource;
+  /**
+   * Index of the block this image follows in the document flow (-1 to lead the
+   * document). Set for images captured from a live DOM so toMarkdown can render
+   * them at their original position. Absent for vision-pipeline or stored
+   * articles, which render images in a list at the end instead.
+   */
+  position?: number;
+  /** DOM order shared by positioned images and tables at the same block anchor. */
+  flowOrder?: number;
 }
 
 export interface MantisTable {
@@ -32,6 +41,8 @@ export interface MantisTable {
    * maxBlocks, which are appended at the end instead.
    */
   position?: number;
+  /** DOM order shared by positioned tables and images at the same block anchor. */
+  flowOrder?: number;
 }
 
 export interface MantisInlineRun {
@@ -98,6 +109,8 @@ export interface MantisDiagnostics {
   fallbackScopeUsed?: boolean;
   /** Tables not spliced into the flow (layout/nested) and appended at the tail. */
   unpositionedTables?: number;
+  /** Images not spliced into the flow and appended at the tail. */
+  unpositionedImages?: number;
 }
 
 export interface MantisExtractOptions {
