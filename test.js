@@ -822,6 +822,7 @@ test("package license metadata is Apache-2.0 with notice", () => {
   assert.strictEqual(pkg.name, "@yrstm/mantis");
   assert.strictEqual(pkg.license, "Apache-2.0");
   assert.strictEqual(pkg.version, "0.3.5");
+  assert.strictEqual(pkg.homepage, "https://yrstm.github.io/mantis/library/");
   assert.ok(pkg.files.includes("LICENSE"));
   assert.ok(pkg.files.includes("NOTICE"));
   assert.ok(license.includes("Apache License"));
@@ -846,25 +847,50 @@ test("repository does not include the macOS capture tool", () => {
   assert.ok(!pkg.files.some((entry) => entry.includes("mantis-screen-capture")));
 });
 
-test("public extension page has a canonical URL and honest release status", () => {
-  const html = fs.readFileSync(path.join(__dirname, "docs", "extension", "index.html"), "utf8");
+test("public home page presents the browser tool with honest release status", () => {
+  const html = fs.readFileSync(path.join(__dirname, "docs", "index.html"), "utf8");
   const page = new JSDOM(html).window.document;
   assert.strictEqual(
     page.querySelector('link[rel="canonical"]').getAttribute("href"),
-    "https://yrstm.github.io/mantis/extension/"
+    "https://yrstm.github.io/mantis/"
   );
   assert.ok(page.querySelector('meta[name="description"]').getAttribute("content"));
-  assert.ok(page.body.textContent.includes("Copy the current page or selected text as Markdown."));
+  assert.ok(page.body.textContent.includes("Extract pages and selected text as Markdown for agents."));
   assert.ok(page.body.textContent.includes("No external page fallback."));
   assert.ok(page.body.textContent.includes("Chrome Web Store — not published"));
   assert.ok(html.includes("App Store — not published"));
+  assert.ok(!page.getElementById("package"));
+  assert.ok(!page.body.textContent.includes("Package locally"));
+  assert.ok(!page.body.textContent.includes("npm run build"));
+  assert.ok(!page.body.textContent.includes("npm run safari:update"));
+  assert.ok(!html.includes("github.com/yrstm/mantis-extension"));
+  assert.ok(page.querySelector('a[href="library/"]'));
+  assert.ok(page.querySelector('a[href="changelog/"]'));
   assert.ok(!/12ft\.io/i.test(html));
-  assert.ok(html.includes("--soft: #f5f6f8"));
-  assert.ok(html.includes("--accent: #165dff"));
+  assert.ok(html.includes("--soft: #f1f2ed"));
+  assert.ok(html.includes("--accent: #b6f03c"));
+  assert.ok(html.includes("--night: #161616"));
+  assert.ok(html.includes("width: min(1120px, calc(100vw - 32px))"));
+  assert.ok(!html.includes("#165dff"));
   assert.ok(!html.includes("fonts.googleapis.com"));
   assert.ok(!/repeating-linear-gradient/i.test(html));
   assert.ok(!/box-shadow/i.test(html));
+  assert.strictEqual(page.querySelector(".kicker").textContent.trim(), "v0.3.7");
+  assert.ok(!/\bpre-release\b/i.test(page.body.textContent));
   assert.strictEqual(page.querySelectorAll("button[data-target]").length, 2);
+  assert.ok(page.querySelector(".browser-shell .browser-viewport .extension-panel"));
+  assert.ok(page.querySelector(".comparison .before"));
+  assert.ok(page.querySelector(".comparison .after"));
+  assert.strictEqual(page.querySelectorAll(".capability-card").length, 4);
+  assert.strictEqual(page.querySelectorAll(".trust-grid .trust-table").length, 2);
+  assert.strictEqual(
+    page.querySelector("#permissions .trust-table-head p").textContent.trim(),
+    "No persistent site access."
+  );
+  assert.ok(!page.body.textContent.includes("Three permissions."));
+  assert.strictEqual(page.querySelectorAll("#permissions tbody tr").length, 3);
+  assert.strictEqual(page.querySelectorAll("#limits tbody tr").length, 4);
+  assert.ok(page.getElementById("demo").compareDocumentPosition(page.getElementById("install")) & 4);
   for (const phrase of [
     "agent-ready",
     "one-click capture",
@@ -886,11 +912,36 @@ test("public extension page has a canonical URL and honest release status", () =
   }
 });
 
-test("public demo links the extension and pins a verified core build", () => {
-  const html = fs.readFileSync(path.join(__dirname, "docs", "index.html"), "utf8");
+test("legacy extension URL redirects to the public home page", () => {
+  const html = fs.readFileSync(path.join(__dirname, "docs", "extension", "index.html"), "utf8");
+  const page = new JSDOM(html).window.document;
+  assert.strictEqual(
+    page.querySelector('link[rel="canonical"]').getAttribute("href"),
+    "https://yrstm.github.io/mantis/"
+  );
+  assert.ok(page.querySelector('meta[http-equiv="refresh"]').getAttribute("content").includes("url=../"));
+  assert.ok(html.includes('location.replace("../"'));
+});
+
+test("public library page keeps the paste converter and pins a verified core build", () => {
+  const html = fs.readFileSync(path.join(__dirname, "docs", "library", "index.html"), "utf8");
   const readme = fs.readFileSync(path.join(__dirname, "README.md"), "utf8");
   const page = new JSDOM(html).window.document;
-  assert.ok(page.querySelector('a[href="extension/"]'));
+  assert.strictEqual(
+    page.querySelector('link[rel="canonical"]').getAttribute("href"),
+    "https://yrstm.github.io/mantis/library/"
+  );
+  assert.ok(page.querySelector('a[href="../"]'));
+  assert.ok(page.querySelector('a[href="../changelog/"]'));
+  assert.ok(html.includes("--accent: #b6f03c"));
+  assert.ok(html.includes("--night: #161616"));
+  assert.ok(!html.includes("#165dff"));
+  assert.strictEqual(page.querySelectorAll("#package .package-command").length, 1);
+  assert.ok(!page.body.textContent.includes("Install a pinned build"));
+  assert.strictEqual(page.querySelectorAll(".converter-grid .converter-column").length, 2);
+  assert.strictEqual(page.querySelectorAll(".converter-grid textarea").length, 2);
+  assert.ok(!page.body.textContent.includes("Screenshot API"));
+  assert.ok(!page.getElementById("changelog"));
 
   const script = page.querySelector('script[src*="cdn.jsdelivr.net/gh/yrstm/mantis@"]');
   assert.ok(script, "pinned public Mantis script is present");
@@ -905,6 +956,20 @@ test("public demo links the extension and pins a verified core build", () => {
     .digest("base64");
   assert.strictEqual(script.getAttribute("integrity"), integrity);
   assert.strictEqual(script.getAttribute("crossorigin"), "anonymous");
+});
+
+test("public changelog is a focused standalone page", () => {
+  const html = fs.readFileSync(path.join(__dirname, "docs", "changelog", "index.html"), "utf8");
+  const page = new JSDOM(html).window.document;
+  assert.strictEqual(
+    page.querySelector('link[rel="canonical"]').getAttribute("href"),
+    "https://yrstm.github.io/mantis/changelog/"
+  );
+  assert.strictEqual(page.querySelector("h1").textContent.trim(), "Changelog");
+  assert.ok(page.querySelectorAll(".change").length >= 14);
+  assert.strictEqual(page.querySelectorAll("textarea, button, script").length, 0);
+  assert.ok(!page.body.textContent.includes("Paste converter"));
+  assert.ok(!page.body.textContent.includes("Screenshot API"));
 });
 
 /* ---------- run(): local copy, configured POST, configured fallback ---------- */
