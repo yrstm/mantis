@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Changes to the Mantis extension and extraction library.">
+  <link rel="canonical" href="https://yrstm.github.io/mantis/changelog/">
+  <title>Mantis — Changelog</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #171717;
+      --body: #35383f;
+      --muted: #60646c;
+      --quiet: #7b808b;
+      --line: #d9ddd1;
+      --line-soft: #e7e9e2;
+      --paper: #ffffff;
+      --accent: #b6f03c;
+      --accent-ink: #526f17;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 400 15px/1.6 var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    a:hover { color: var(--accent-ink); }
+
+    .page {
+      width: min(1120px, calc(100vw - 32px));
+      margin: 0 auto;
+    }
+
+    header {
+      min-height: 61px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 1px solid var(--line);
+      padding: 15px 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .mark {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      color: var(--accent);
+      background: var(--ink);
+      font: 500 15px/1 var(--mono);
+    }
+
+    nav {
+      display: flex;
+      gap: 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    main { padding: 72px 0 80px; }
+
+    .intro {
+      max-width: 720px;
+      padding-bottom: 54px;
+    }
+
+    .kicker {
+      margin-bottom: 18px;
+      color: var(--accent-ink);
+      font: 500 11px/1.4 var(--mono);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: clamp(38px, 6vw, 58px);
+      font-weight: 400;
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+    }
+
+    .intro p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .changelog {
+      max-width: 900px;
+      border-top: 1px solid var(--line);
+    }
+
+    .change {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 28px;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 24px 0;
+    }
+
+    .change time {
+      padding-top: 2px;
+      color: var(--accent-ink);
+      font: 400 12px/1.5 var(--mono);
+    }
+
+    .change h2 {
+      margin: 0 0 6px;
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .change p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    code {
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 1px 4px;
+      background: #f5f6f1;
+      font: 12px/1.5 var(--mono);
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      border-top: 1px solid var(--line);
+      padding: 22px 0 40px;
+      color: var(--quiet);
+      font: 400 12px/1.5 var(--mono);
+    }
+
+    @media (max-width: 700px) {
+      .page { width: min(100% - 40px, 1120px); }
+      nav { display: none; }
+      main { padding: 54px 0 64px; }
+      .change {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      footer { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <a class="brand" href="../">
+        <span class="mark" aria-hidden="true">M</span>
+        <span>Mantis</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="../">Mantis</a>
+        <a href="../library/">Library</a>
+        <a href="https://github.com/yrstm/mantis">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div class="kicker">Mantis</div>
+        <h1 id="page-title">Changelog</h1>
+        <p>Product, extraction, packaging, and documentation changes.</p>
+      </section>
+
+      <section class="changelog" aria-label="Changes">
+        <article class="change">
+          <time datetime="2026-07-29">2026-07-29</time>
+          <div>
+            <h2>Extension becomes the main public page</h2>
+            <p>Made the browser tool the GitHub Pages home page, added local packaging instructions, and moved the library demo and changelog to focused pages.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-07-28">2026-07-28</time>
+          <div>
+            <h2>Chrome and Safari page</h2>
+            <p>Added the capture flow, privacy boundary, current limitations, and store availability status.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-07-23">2026-07-23</time>
+          <div>
+            <h2>Images render at their original position</h2>
+            <p>Markdown output now places content images where they appeared on the page, interleaved with prose and tables. Captures without live DOM positions keep the trailing list.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-26">2026-06-26</time>
+          <div>
+            <h2>macOS capture repository split</h2>
+            <p>Moved the macOS screen capture helper out of this library repository and into <code>yrstm/mantis-capture</code>, leaving Mantis as the extraction and normalization library.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <div>
+            <h2>v0.3.3 Markdown marker fix (#17)</h2>
+            <p>Changed leading emphasis rendering so image credits and similar italic-first lines do not look like malformed list markers to Markdown validators.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <div>
+            <h2>v0.3.2 library package cleanup (#16)</h2>
+            <p>Moved the public repository back to the open-source extraction library, removed unpacked browser files and install notes, and set the npm package name to <code>@yrstm/mantis</code>.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <div>
+            <h2>v0.3.1 Apache-2.0 license (#15)</h2>
+            <p>Relicensed Mantis under Apache-2.0 from v0.3.1, added a NOTICE file, and documented that v0.3.0 and earlier stay MIT for those copies.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <div>
+            <h2>Public GitHub Pages demo (#12)</h2>
+            <p>Added the public library page with package notes, a normal-copy comparison, and a paste converter.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <div>
+            <h2>Screenshot-to-Markdown normalization (#10)</h2>
+            <p>Added <code>Mantis.fromImage()</code> so caller-supplied OCR or vision output can be normalized into Mantis articles and structured Markdown.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <div>
+            <h2>Non-content image filtering (#11)</h2>
+            <p>Filtered avatars, icons, badges, logos, social images, and tracking pixels while keeping useful article images, figures, charts, and diagrams.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <div>
+            <h2>Live-page capture prototype (#9)</h2>
+            <p>Added a live-page capture prototype, selection capture, source-safety metadata, configurable delivery, and stronger extraction for documentation and newsletter pages.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-24">2026-06-24</time>
+          <div>
+            <h2>Agent Markdown documentation and demo (#5)</h2>
+            <p>Simplified the README and demo around rendered-DOM capture, Markdown for agents, and the browser-copy versus Mantis output comparison.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-23">2026-06-23</time>
+          <div>
+            <h2>Demo port override (#4)</h2>
+            <p>Documented how to run the local demo server on a different port when the default port is already in use.</p>
+          </div>
+        </article>
+        <article class="change">
+          <time datetime="2026-06-19">2026-06-19</time>
+          <div>
+            <h2>v0.3.0 library update (#3)</h2>
+            <p>Expanded README and agent documentation, added runnable agent examples, improved inline HTML rendering, and added section object discriminators.</p>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer>
+      <span>Mantis</span>
+      <a href="https://github.com/yrstm/mantis">Source on GitHub</a>
+    </footer>
+  </div>
+</body>
+</html>

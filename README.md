@@ -22,7 +22,7 @@ npm install https://github.com/yrstm/mantis/archive/9e462696990449979b309886d358
 ```
 
 The official Mantis browser extension is packaged separately from this open-source library repo.
-See the [Mantis Extension page](https://yrstm.github.io/mantis/extension/) for usage, privacy,
+See the [Mantis browser page](https://yrstm.github.io/mantis/) for usage, privacy,
 limitations, and install status. Store links will be added there when they are ready.
 
 ```js
@@ -234,13 +234,17 @@ extraction script.
 
 ## Public Page and Local Demo
 
-Public page: <https://yrstm.github.io/mantis/>
+Browser tool: <https://yrstm.github.io/mantis/>
 
-GitHub Pages serves `docs/index.html`. The README stays in the repo; the public page is a smaller
-comparison and paste-converter page.
+Library demo and paste converter: <https://yrstm.github.io/mantis/library/>
 
-For user-facing PRs, add one short entry to the Changelog section in `docs/index.html`. Draft the
-entry plainly so it can be edited during review.
+Changelog: <https://yrstm.github.io/mantis/changelog/>
+
+GitHub Pages serves the browser tool from `docs/index.html`. The library page lives in
+`docs/library/index.html`.
+
+For user-facing PRs, add one short entry to `docs/changelog/index.html`. Draft the entry plainly so
+it can be edited during review.
 
 ```sh
 npm run demo
