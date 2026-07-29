@@ -4,33 +4,31 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Mantis Extension copies the current page or selected text as Markdown. Chrome and Safari availability, permissions, privacy, and limitations.">
-  <meta name="theme-color" content="#f5f4f0">
+  <meta name="theme-color" content="#f5f6f8">
   <link rel="canonical" href="https://yrstm.github.io/mantis/extension/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Mantis Extension">
   <meta property="og:description" content="Copy the current page or selected text as Markdown.">
   <meta property="og:url" content="https://yrstm.github.io/mantis/extension/">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;1,400&amp;display=swap" rel="stylesheet">
   <title>Mantis Extension</title>
   <style>
     :root {
       color-scheme: light;
-      --ink: #1b1b19;
-      --body: #3c3a36;
-      --muted: #6d6b64;
-      --quiet: #8a877e;
-      --line: #dcdad1;
-      --line-soft: #e6e4dc;
-      --line-strong: #d5d3c9;
-      --paper: #f5f4f0;
-      --panel: #fbfaf7;
-      --panel-soft: #efede7;
-      --grid: #e7e5de;
-      --accent: #9a4a26;
-      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      --sans: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --ink: #171717;
+      --body: #35383f;
+      --muted: #60646c;
+      --quiet: #7b808b;
+      --line: #d8dbe2;
+      --line-soft: #e7e9ee;
+      --line-strong: #cfd3dc;
+      --paper: #ffffff;
+      --panel: #ffffff;
+      --panel-soft: #f5f6f8;
+      --soft: #f5f6f8;
+      --accent: #165dff;
+      --accent-soft: #eaf0ff;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     * { box-sizing: border-box; }
@@ -43,11 +41,7 @@
     body {
       margin: 0;
       color: var(--ink);
-      background-color: var(--paper);
-      background-image:
-        linear-gradient(var(--grid) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-      background-size: 64px 64px;
+      background: var(--soft);
       font: 400 15px/1.6 var(--sans);
       -webkit-font-smoothing: antialiased;
     }
@@ -58,7 +52,7 @@
     }
 
     a:hover { color: var(--accent); }
-    ::selection { background: #e8dfd3; }
+    ::selection { background: var(--accent-soft); }
 
     button {
       border-radius: 0;
@@ -69,8 +63,8 @@
       width: min(880px, calc(100vw - 48px));
       min-height: 100vh;
       margin: 0 auto;
-      border-right: 1px solid #e2e0d8;
-      border-left: 1px solid #e2e0d8;
+      border-right: 1px solid var(--line);
+      border-left: 1px solid var(--line);
       padding: 0 32px;
       background: var(--paper);
     }
@@ -88,25 +82,26 @@
     .brand {
       display: flex;
       align-items: center;
-      gap: 9px;
-      font: 500 13px/1 var(--mono);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 700;
     }
 
     .brand-mark {
-      width: 9px;
-      height: 9px;
-      display: block;
-      background: var(--accent);
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      color: #fff;
+      background: var(--ink);
+      font-size: 15px;
     }
 
     nav {
       display: flex;
       gap: 20px;
-      font: 400 11px/1.2 var(--mono);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: 14px;
     }
 
     nav a { color: var(--muted); }
@@ -263,13 +258,12 @@
     }
 
     .figure-stage {
-      min-height: 390px;
+      min-height: 340px;
       display: grid;
       place-items: center;
       border: 1px solid var(--line-strong);
-      padding: 38px;
-      background-color: var(--panel-soft);
-      background-image: repeating-linear-gradient(135deg, #e4e1d9 0 1px, transparent 1px 9px);
+      padding: 32px;
+      background: var(--panel-soft);
     }
 
     .extension-panel {
@@ -394,8 +388,8 @@
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 1px;
-      border: 1px solid #e2e0d8;
-      background: #e2e0d8;
+      border: 1px solid var(--line);
+      background: var(--line);
     }
 
     .permission {
@@ -444,8 +438,6 @@
     }
 
     @media (max-width: 700px) {
-      body { background-image: none; }
-
       .page {
         width: 100%;
         border: 0;
@@ -480,7 +472,7 @@
   <div class="page" id="top">
     <header>
       <a class="brand" href="#top">
-        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-mark" aria-hidden="true">M</span>
         <span>Mantis</span>
       </a>
       <nav aria-label="Primary navigation">
@@ -493,7 +485,7 @@
 
     <main>
       <section class="overview" id="overview" aria-labelledby="page-title">
-        <div class="kicker">Browser extension · v0.3.7 · pre-release</div>
+        <div class="kicker">Extension · v0.3.7 · pre-release</div>
         <h1 id="page-title">Copy the current page or selected text as Markdown.</h1>
         <p class="lead">Mantis runs when you click its toolbar button. It reads the page already rendered in the active tab, converts it locally, shows a preview, and copies the Markdown to your clipboard.</p>
         <p class="flow">Page or selection → Markdown → clipboard.</p>

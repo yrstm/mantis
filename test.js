@@ -859,8 +859,10 @@ test("public extension page has a canonical URL and honest release status", () =
   assert.ok(page.body.textContent.includes("Chrome Web Store — not published"));
   assert.ok(html.includes("App Store — not published"));
   assert.ok(!/12ft\.io/i.test(html));
-  assert.ok(html.includes("--paper: #f5f4f0"));
-  assert.ok(html.includes("IBM Plex Mono"));
+  assert.ok(html.includes("--soft: #f5f6f8"));
+  assert.ok(html.includes("--accent: #165dff"));
+  assert.ok(!html.includes("fonts.googleapis.com"));
+  assert.ok(!/repeating-linear-gradient/i.test(html));
   assert.ok(!/box-shadow/i.test(html));
   assert.strictEqual(page.querySelectorAll("button[data-target]").length, 2);
   for (const phrase of [
