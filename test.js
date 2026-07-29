@@ -859,9 +859,11 @@ test("public home page presents the browser tool with honest release status", ()
   assert.ok(page.body.textContent.includes("No external page fallback."));
   assert.ok(page.body.textContent.includes("Chrome Web Store — not published"));
   assert.ok(html.includes("App Store — not published"));
-  assert.ok(page.body.textContent.includes("npm run build"));
-  assert.ok(page.body.textContent.includes("npm run safari:update"));
-  assert.ok(page.body.textContent.includes("dist/extension"));
+  assert.ok(!page.getElementById("package"));
+  assert.ok(!page.body.textContent.includes("Package locally"));
+  assert.ok(!page.body.textContent.includes("npm run build"));
+  assert.ok(!page.body.textContent.includes("npm run safari:update"));
+  assert.ok(!html.includes("github.com/yrstm/mantis-extension"));
   assert.ok(page.querySelector('a[href="library/"]'));
   assert.ok(page.querySelector('a[href="changelog/"]'));
   assert.ok(!/12ft\.io/i.test(html));

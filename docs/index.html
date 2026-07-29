@@ -268,73 +268,6 @@
       line-height: 1.6;
     }
 
-    .package-section {
-      display: grid;
-      gap: 18px;
-      border-top: 1px solid var(--line);
-      padding: 20px 0 64px;
-    }
-
-    .package-intro {
-      max-width: 720px;
-      margin: 0;
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    .package-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 1px;
-      border: 1px solid var(--line);
-      background: var(--line);
-    }
-
-    .package-card {
-      min-width: 0;
-      display: grid;
-      align-content: start;
-      gap: 12px;
-      padding: 18px;
-      background: var(--paper);
-    }
-
-    .package-card h3 {
-      margin: 0;
-      font: 500 12px/1.4 var(--mono);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .package-command {
-      margin: 0;
-      overflow: auto;
-      border: 1px solid var(--night-line);
-      border-radius: 7px;
-      padding: 13px;
-      color: #d8d8d8;
-      background: var(--night-inset);
-      font: 400 11px/1.65 var(--mono);
-      white-space: pre-wrap;
-    }
-
-    .package-command .prompt { color: var(--accent); }
-
-    .package-card p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.55;
-    }
-
-    .package-card code { font: 400 11px/1.5 var(--mono); }
-
-    .package-card a {
-      text-decoration: underline;
-      text-decoration-color: var(--line-strong);
-      text-underline-offset: 3px;
-    }
-
     .workflow-figure,
     .comparison-figure {
       display: grid;
@@ -867,7 +800,6 @@
     }
 
     @media (max-width: 860px) {
-      .package-grid,
       .trust-grid { grid-template-columns: 1fr; }
       nav { display: none; }
     }
@@ -936,10 +868,8 @@
       <nav aria-label="Primary navigation">
         <a href="#demo">Example</a>
         <a href="#install">Install</a>
-        <a href="#package">Package</a>
         <a href="changelog/">Changelog</a>
         <a href="library/">Library</a>
-        <a href="https://github.com/yrstm/mantis-extension">GitHub</a>
       </nav>
     </header>
 
@@ -1010,29 +940,6 @@ Local-first software keeps the working copy on your device.
           <div class="install-state">Deferred</div>
         </div>
         <p class="hint" id="install-hint">The Manifest V3 build passes local tests. A public install link will be added after store submission.</p>
-      </section>
-
-      <section class="package-section" id="package" aria-labelledby="package-title">
-        <h2 class="section-title" id="package-title">Package locally</h2>
-        <p class="package-intro">Until store builds are published, package from a checkout of <a href="https://github.com/yrstm/mantis-extension">yrstm/mantis-extension</a>.</p>
-        <div class="package-grid">
-          <article class="package-card">
-            <h3>Chrome / Brave</h3>
-            <pre class="package-command"><span class="prompt">$</span> git clone https://github.com/yrstm/mantis-extension.git
-<span class="prompt">$</span> cd mantis-extension
-<span class="prompt">$</span> npm install
-<span class="prompt">$</span> npm run build</pre>
-            <p>Load <code>dist/extension</code> as an unpacked browser add-on. For a store archive, zip only the contents of that directory.</p>
-          </article>
-          <article class="package-card">
-            <h3>Safari</h3>
-            <pre class="package-command"><span class="prompt">$</span> git clone https://github.com/yrstm/mantis-extension.git
-<span class="prompt">$</span> cd mantis-extension
-<span class="prompt">$</span> npm install
-<span class="prompt">$</span> npm run safari:update</pre>
-            <p>The command rebuilds <code>dist/extension</code> and refreshes the wrapper in <code>safari/Mantis</code>. Signing and App Store submission remain separate.</p>
-          </article>
-        </div>
       </section>
 
       <section class="comparison-section" id="comparison" aria-labelledby="comparison-title">
@@ -1220,7 +1127,6 @@ copy on your device.</pre>
       <span>
         <a href="library/">Library</a>
         <a href="changelog/">Changelog</a>
-        <a href="https://github.com/yrstm/mantis-extension">Source</a>
         <a href="#permissions">Privacy</a>
       </span>
     </footer>
