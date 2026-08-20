@@ -56,6 +56,24 @@ function scoreFixture(fixture) {
         label: `confidence >= ${fixture.diagnostics.minConfidence}`
       });
     }
+    if (fixture.diagnostics.strategy) {
+      checks.push({
+        ok: actual.diagnostics && actual.diagnostics.strategy === fixture.diagnostics.strategy,
+        label: `strategy is ${fixture.diagnostics.strategy}`
+      });
+    }
+    if (fixture.diagnostics.archetype) {
+      checks.push({
+        ok: actual.diagnostics && actual.diagnostics.archetype === fixture.diagnostics.archetype,
+        label: `archetype is ${fixture.diagnostics.archetype}`
+      });
+    }
+    if (fixture.diagnostics.minCoverage !== undefined) {
+      checks.push({
+        ok: actual.diagnostics && (actual.diagnostics.coverage || 0) >= fixture.diagnostics.minCoverage,
+        label: `coverage >= ${fixture.diagnostics.minCoverage}`
+      });
+    }
   }
 
   const passed = checks.filter((check) => check.ok).length;

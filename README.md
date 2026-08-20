@@ -168,6 +168,24 @@ const markdown = Mantis.toMarkdown(article, { frontmatter: true, budget: "outlin
 | `includeLinks` | `true` |
 | `includeImages` | `true` |
 | `includeTables` | `true` |
+| `strategy` | `"auto"`; see adaptive extraction below |
+
+### Adaptive extraction
+
+The default pipeline assumes one dominant content container. `extract()` first profiles the
+page's structure (`Mantis.analyze(document)` returns the same profile) and, when the default
+result covers too little of the visible page, may re-extract with a fitting strategy —
+`"composite"` for sectioned landing pages, `"linklist"` for pages whose content is a list of
+links (Hacker News-style front pages). Lexicon-based chrome detection matches whole words and is
+dominance-aware: a container flagged by name alone ("comment-tree", "SharedPageLayout") that
+holds the majority of the page's visible text is treated as content, not chrome. An alternative strategy is only kept when it beats the
+default result by a clear quality margin, so pages well served by the default pipeline produce
+identical output. Pass `strategy: "article"` to pin the classic behavior, or `"composite"` /
+`"feed"` to force one. Outcome signals land on `article.diagnostics` (`strategy`,
+`strategiesAttempted`, `escalationRejected`, `coverage`, `archetype`, `lazyMountSuspicion`) and in
+the Markdown frontmatter (`strategy`, `coverage`); new warnings are `low_coverage` and
+`content_not_mounted` (the page looks client-rendered and its content had not mounted — recapture
+after load/scroll).
 
 Hard caps: 200 links, 100 images, 50 tables. Non-content images such as avatars, icons, logos,
 badges, social buttons, and tracking pixels are filtered before Markdown rendering. Content images
@@ -176,7 +194,8 @@ position (vision-pipeline or stored articles) are appended at the end. `selectio
 in a live browser context; it is always `null` in `fromHTML()`.
 
 Frontmatter also includes cheap routing signals when available: `captureMode`, `imageCount`,
-`selectionChars`, `blockCount`, `citationCount`, `linkCount`, and `tableCount`. With frontmatter
+`selectionChars`, `blockCount`, `citationCount`, `linkCount`, `tableCount`, `strategy`, and
+`coverage`. With frontmatter
 enabled, Mantis also adds `sourceSafety`, a short instruction that helps agents treat converted page
 content as untrusted source data rather than user or system instructions.
 

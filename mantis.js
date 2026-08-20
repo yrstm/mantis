@@ -33,8 +33,24 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  // Negative signals in id/class names.
-  var BAD = /comment|reply|footer|header|navbar|nav-|menu|share|social|promo|related|recommend|advert|sponsor|cookie|subscribe(?!r)|masthead|breadcrumb|disclaimer|meter-banner|jump-to-recipe/i;
+  // Negative signals in id/class names. Signals match whole tokens only:
+  // the signature is split on non-alphanumerics and camelCase boundaries
+  // before matching, so content containers like GitHub's "SharedPageLayout"
+  // no longer trip "share", and layout wrappers like arXiv's
+  // "flex-wrap-footer" can be demoted by the dominance override (see
+  // analyzeChrome). Multi-word phrases stay regexes.
+  var BAD_PHRASE = /meter-banner|jump[-\s]to[-\s]recipe/i;
+  var BAD_WORDS = {
+    comment: 1, comments: 1, reply: 1, footer: 1, header: 1, navbar: 1, nav: 1,
+    menu: 1, share: 1, social: 1, promo: 1, related: 1, recommend: 1,
+    recommendation: 1, recommendations: 1, advert: 1, sponsor: 1, sponsored: 1,
+    cookie: 1, cookies: 1, consent: 1, onetrust: 1, didomi: 1, trustarc: 1,
+    cookiebot: 1, osano: 1, subscribe: 1, masthead: 1, breadcrumb: 1,
+    breadcrumbs: 1, disclaimer: 1
+  };
+  // sidebar/newsletter keep the legacy boundary semantics: "site_sidebar"
+  // and "sidebarColumn" (camelCase-split) match, but layout-utility compounds
+  // like Netlify's "ntl-sidebar-left" or Stripe's "Sidebar--expanded" do not
   var CHROME_CLASS = /(^|[\s_-])(sidebar|newsletter)([\s_]|$)/i;
   var GOOD = /article|body|content|entry|main|markdown|markup|post|story|text|docs|recipe/i;
   var HIDDEN_CLASS = /(^|\s)(hidden|collapsed|visually-hidden|sr-only|screen-reader|u-hidden|is-hidden)(\s|$)/i;
@@ -114,7 +130,13 @@
       minTextLength: typeof options.minTextLength === "number" ? options.minTextLength : 25,
       includeLinks: options.includeLinks !== false,
       includeImages: options.includeImages !== false,
-      includeTables: options.includeTables !== false
+      includeTables: options.includeTables !== false,
+      // adaptive extraction: "auto" profiles the page and may escalate to a
+      // fitting strategy; a named strategy forces it. Default path unchanged.
+      strategy: typeof options.strategy === "string" ? options.strategy : "auto",
+      // >0 only inside composite scopes: short copy directly under a captured
+      // heading is content (marketing blurbs), not noise.
+      headingAttachedMin: options.headingAttachedMin || 0
     };
   }
 
@@ -138,19 +160,40 @@
 
   function signature(el) {
     var testId = el.getAttribute ? (el.getAttribute("data-testid") || el.getAttribute("data-test") || "") : "";
-    return wordify((el.id || "") + " " + (el.className && el.className.baseVal !== undefined ? "" : el.className || "") + " " +
-      (el.getAttribute && (el.getAttribute("role") || "") + " " + (el.getAttribute("itemprop") || "") + " " + testId));
+    var raw = (el.id || "") + " " + (el.className && el.className.baseVal !== undefined ? "" : el.className || "") + " " +
+      (el.getAttribute && (el.getAttribute("role") || "") + " " + (el.getAttribute("itemprop") || "") + " " + testId);
+    // strip functional CSS fragments ("z-(--z-header)") and custom property
+    // names ("--spacing-header") BEFORE camelCase splitting: their tokens are
+    // style values, not semantic labels, and wordify would break the patterns
+    // ("Section--hasStickyNav" -> "Section--has Sticky Nav")
+    raw = raw.replace(/\([^)]*\)/g, " ").replace(/--[\w-]+/g, " ");
+    return wordify(raw);
   }
 
   function classText(el) {
     return el.className && el.className.baseVal !== undefined ? "" : el.className || "";
   }
 
+  // utility-CSS value prefixes: in "bg-footer" or "text-header", the second
+  // token is a style value, not a semantic label
+  var UTILITY_PREFIX = { bg: 1, text: 1, border: 1, ring: 1, fill: 1, stroke: 1, from: 1, via: 1, to: 1, shadow: 1, outline: 1, divide: 1, placeholder: 1, caret: 1, accent: 1, decoration: 1, backdrop: 1, z: 1, spacing: 1 };
+
   function chromeSignal(el) {
     var sig = signature(el);
-    if (BAD.test(sig)) return true;
+    if (BAD_PHRASE.test(sig)) return true;
+    var words = sig.toLowerCase().split(/[^a-z0-9]+/);
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (!w) continue;
+      if (i > 0 && UTILITY_PREFIX[words[i - 1]]) continue;
+      if (BAD_WORDS[w]) return true;
+    }
     if (!CHROME_CLASS.test(sig)) return false;
     return !/\bnewsletter\b.*\b(post|article|story|body|content)\b/i.test(sig);
+  }
+
+  function isDemoted(ctx, el) {
+    return !!(ctx && ctx.demoted && ctx.demoted.indexOf(el) !== -1);
   }
 
   function hidden(el) {
@@ -170,19 +213,32 @@
     return false;
   }
 
-  function flagged(el, stopAt) {
+  function flagged(el, stopAt, ctx) {
     // does any ancestor up to the candidate look like page chrome?
+    // When the path crosses a demoted subtree (a lexicon-flagged container
+    // that holds the majority of the page's text — see analyzeChrome), the
+    // whole subtree is content: lexicon flags inside it (HN's per-comment
+    // div.comment wrappers under the demoted comment-tree) do not apply.
+    // Structural chrome (NAV/FOOTER/hidden/...) always applies.
+    var crossesDemoted = false;
+    if (ctx && ctx.demoted && ctx.demoted.length) {
+      for (var m = el; m && m !== stopAt; m = m.parentElement) {
+        if (ctx.demoted.indexOf(m) !== -1) { crossesDemoted = true; break; }
+      }
+    }
     for (var n = el; n && n !== stopAt; n = n.parentElement) {
       if (hidden(n)) return true;
-      if (chromeSignal(n)) return true;
+      if (chromeSignal(n) && !crossesDemoted && !isDemoted(ctx, n)) return true;
       if (/^(NAV|FOOTER|ASIDE|FORM)$/.test(n.tagName)) return true;
       if (n.tagName === "HEADER") {
         // <header> inside an article or section is the content's own header
-        // (title, subtitle, byline), not page chrome; only flag site-level headers
+        // (title, subtitle, byline), not page chrome; only flag site-level
+        // headers. The search runs to the root, past stopAt: when the scope
+        // is a div INSIDE the article (Cloudflare's post-content div), the
+        // enclosing article still makes the header content.
         var inSection = false;
         for (var p = n.parentElement; p; p = p.parentElement) {
           if (/^(ARTICLE|SECTION)$/.test(p.tagName)) { inSection = true; break; }
-          if (p === stopAt) break;
         }
         if (!inSection) return true;
       }
@@ -198,7 +254,7 @@
     return linked / total;
   }
 
-  function semanticMultiplier(el) {
+  function semanticMultiplier(el, ctx) {
     var sig = signature(el);
     var m = 1;
     if (/^(ARTICLE)$/.test(el.tagName)) m += 0.45;
@@ -206,15 +262,15 @@
     if (/^(SECTION)$/.test(el.tagName)) m += 0.2;
     if (/^(article|main)$/i.test(el.getAttribute && (el.getAttribute("role") || ""))) m += 0.25;
     if (GOOD.test(sig)) m += 0.25;
-    if (chromeSignal(el) || /^(NAV|FOOTER|HEADER|ASIDE|FORM)$/.test(el.tagName)) m *= 0.15;
+    if ((chromeSignal(el) && !isDemoted(ctx, el)) || /^(NAV|FOOTER|HEADER|ASIDE|FORM)$/.test(el.tagName)) m *= 0.15;
     return m;
   }
 
-  function addScore(el, points, scores, seen) {
+  function addScore(el, points, scores, seen, ctx) {
     if (!el || /^(HTML|BODY)$/.test(el.tagName) || hidden(el)) return;
     var at = seen.indexOf(el);
     if (at === -1) { seen.push(el); scores.push(0); at = seen.length - 1; }
-    scores[at] += points * semanticMultiplier(el);
+    scores[at] += points * semanticMultiplier(el, ctx);
   }
 
   function isArticleEl(el) {
@@ -222,7 +278,7 @@
   }
 
   // score readable nodes, weighting direct containers and semantic ancestors
-  function findContent(doc) {
+  function findContent(doc, ctx) {
     var ps = doc.querySelectorAll("p, blockquote, pre, li, dd, div");
     var scores = [];
     var seen = [];
@@ -230,14 +286,14 @@
     for (var i = 0; i < ps.length; i++) {
       var p = ps[i];
       if (p.tagName === "DIV" && !isTextDiv(p)) continue;
-      if (hidden(p) || flagged(p)) continue;
+      if (hidden(p) || flagged(p, null, ctx)) continue;
       var len = textOf(p).length;
       if (len < 25) continue;
       var points = Math.min(len, 600);
       var tier = 0;
       for (var a = p.parentElement; a && !/^(HTML|BODY)$/.test(a.tagName); a = a.parentElement) {
         if (tier < 2 || /^(ARTICLE|MAIN|SECTION)$/.test(a.tagName) || GOOD.test(signature(a))) {
-          addScore(a, points * tierWeight[Math.min(tier, 2)], scores, seen);
+          addScore(a, points * tierWeight[Math.min(tier, 2)], scores, seen, ctx);
         }
         // an <article> is its own content boundary: once a paragraph's score
         // has been credited up to its nearest enclosing article, stop
@@ -387,6 +443,9 @@
   function blocksFrom(scope, stopAt, doc, options, stats) {
     var out = [];
     var used = {};
+    // short blocks kept under the most recent captured heading (composite
+    // strategy only; 0 disables the allowance and preserves default behavior)
+    var headingRun = 0;
     var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6, dd, div");
     var i;
     for (i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
@@ -394,11 +453,15 @@
       if (!KEEP[el.tagName]) continue;
       if (el.tagName === "DIV" && !isTextDiv(el)) continue;
       if (hidden(el)) continue;
-      if (el !== scope && flagged(el, stopAt || scope)) continue;
+      if (el !== scope && flagged(el, stopAt || scope, options.__chromeCtx)) continue;
       var heading = /^H/.test(el.tagName);
       var full = textOf(el);
       if (!full) continue;
-      if (!heading && full.length < options.minTextLength) continue;
+      if (!heading && full.length < options.minTextLength) {
+        var headingAttached = options.headingAttachedMin > 0 && headingRun > 0 &&
+          headingRun <= PROFILER.headingAttachedMax && full.length >= options.headingAttachedMin;
+        if (!headingAttached) continue;
+      }
       if (!heading && linkDensity(el) > 0.5) continue;
       var type = BLOCK_TYPE[el.tagName] || "paragraph";
       var item = el.tagName === "LI";
@@ -410,6 +473,9 @@
       var key = normalized(t);
       if (used[key]) continue;
       used[key] = true;
+      if (heading) headingRun = 1;
+      else if (full.length < options.minTextLength) headingRun++;
+      else headingRun = 0;
       var block = {
         object: "block",
         type: type,
@@ -441,7 +507,7 @@
           var n = nodes[j];
           if (!KEEP[n.tagName] || hidden(n)) continue;
           if (n.tagName === "DIV" && !isTextDiv(n)) continue;
-          if (n !== scope && flagged(n, stopAt || scope)) continue;
+          if (n !== scope && flagged(n, stopAt || scope, options.__chromeCtx)) continue;
           var ft = textOf(n);
           if (!ft) continue;
           if (!/^H/.test(n.tagName) && ft.length < options.minTextLength) continue;
@@ -490,13 +556,13 @@
     return out;
   }
 
-  function linksFrom(scope, doc) {
+  function linksFrom(scope, doc, ctx) {
     var out = [];
     var seen = {};
     var links = scope ? scope.getElementsByTagName("a") : [];
     for (var i = 0; i < links.length && out.length < 200; i++) {
       var el = links[i];
-      if (hidden(el) || flagged(el, scope)) continue;
+      if (hidden(el) || flagged(el, scope, ctx)) continue;
       var href = absoluteUrl(doc, attr(el, "href"));
       if (!href || seen[href]) continue;
       seen[href] = true;
@@ -760,13 +826,405 @@
     if (article.diagnostics.nextScore && article.diagnostics.score / (article.diagnostics.nextScore + 1) < 1.2) out.push("ambiguous_scope");
     if (article.diagnostics.maxBlocksHit) out.push("blocks_truncated");
     if (article.diagnostics.maxTablesHit) out.push("tables_truncated");
+    if (typeof article.diagnostics.coverage === "number" &&
+        article.diagnostics.coverage < PROFILER.lowCoverage &&
+        (article.diagnostics.visibleTextLength > PROFILER.substantialText)) out.push("low_coverage");
+    if (article.diagnostics.lazyMountSuspicion) out.push("content_not_mounted");
+    // scope-model warnings (no_content_scope, low_confidence,
+    // high_link_density) describe the article pipeline's scope; when an
+    // adaptive strategy produced the result they are artifacts, not signals
+    if (article.diagnostics.strategy && article.diagnostics.strategy !== "article") {
+      out = out.filter(function (w) {
+        return w !== "no_content_scope" && w !== "low_confidence" && w !== "high_link_density";
+      });
+    }
     return out;
   }
 
   function statusFrom(article) {
     if (!article.blocks.length) return "empty";
     if (article.warnings.indexOf("low_confidence") !== -1 || article.warnings.indexOf("short_content") !== -1) return "partial";
+    if (article.warnings.indexOf("low_coverage") !== -1) return "partial";
     return "completed";
+  }
+
+  /* ---------- adaptive extraction: profiler, strategies, quality gate ----------
+   *
+   * The default pipeline assumes one dominant content container. When a page
+   * does not fit that model (landing pages, feeds, lazy-mounted apps), the
+   * profiler classifies the page's structure, and the escalation gate may
+   * re-extract with a fitting strategy — but only when the alternative wins
+   * by a clear quality margin, so well-served pages keep identical output.
+   */
+
+  // Tunables in one place so tests can assert against them and releases can
+  // calibrate them.
+  var PROFILER = {
+    lowCoverage: 0.5,      // below this captured/visible ratio a capture is suspect
+    substantialText: 1500, // ...but only when the page has this much visible text
+    sparseText: 800,       // below this visible text ...
+    sparseElements: 400,   // ...with this many elements, content is likely not mounted
+    qualityMargin: 0.1,    // an alternative strategy must beat the default by this
+    headingAttachedMax: 4, // short blocks allowed under one heading (composite)
+    feedMinItems: 3,       // sibling articles needed to classify a feed
+    feedMinText: 60,       // per-article text needed to count as a feed item
+    linkMinText: 6         // link text shorter than this is nav/metadata, not content
+  };
+
+  // metadata links in link lists start with counts/timestamps
+  // ("45 comments", "3 hours ago"); story titles do not
+  var METADATA_LINK = /^\d+[\s.](points?|comments?|mins?|minutes?|hours?|days?|weeks?|months?|years?|ago)\b/i;
+
+  // Local (non-computed-style) check for subtrees that never hold content.
+  // The profiler runs on every extraction and must stay cheap, so it mirrors
+  // hidden()/flagged() but skips getComputedStyle. With hardOnly=true only
+  // structural chrome counts; lexicon (id/class) chrome is handled separately
+  // by analyzeChrome so it can be demoted.
+  function chromeSubtreeRoot(el, inSection, hardOnly) {
+    var tag = el.tagName;
+    if (/^(NAV|FOOTER|ASIDE|FORM|SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(tag)) return true;
+    if (tag === "HEADER" && !inSection) return true;
+    if (el.hidden || el.getAttribute("aria-hidden") === "true") return true;
+    if (HIDDEN_CLASS.test(classText(el))) return true;
+    var style = el.getAttribute("style") || "";
+    if (/(^|;)\s*display\s*:\s*none\s*(;|$)/i.test(style)) return true;
+    if (/(^|;)\s*visibility\s*:\s*hidden\s*(;|$)/i.test(style)) return true;
+    return hardOnly ? false : chromeSignal(el);
+  }
+
+  // One walk over the body: find chrome subtrees, how much text is visible
+  // outside them, and how many elements the page carries. The visible-text
+  // figure is the denominator for capture coverage.
+  //
+  // Lexicon-flagged chrome (id/class words like "comment" or "footer") is
+  // demotable: when such a subtree holds the majority of the page's text it
+  // cannot be chrome — it IS the content (Hacker News' comment-tree table,
+  // arXiv's flex-wrap-footer page wrapper). Demoted roots are recorded on the
+  // context so scoring and block extraction treat them as content too.
+  // Tag/hidden-based chrome (NAV, FOOTER, display:none, ...) is structural
+  // and never demoted.
+  function analyzeChrome(doc) {
+    var ctx = { demoted: [], total: 0, visible: 0, elements: 0 };
+    var body = doc.body;
+    if (!body) return ctx;
+    var rawTotal = textOf(body).length;
+    var invisible = 0; // chars no human can see: scripts, styles, hidden subtrees
+    var hard = 0;      // visible chars under structural chrome (nav/footer/...)
+    var soft = [];     // lexicon-flagged roots: {el, text}
+    (function walk(el, inChrome, inSection) {
+      var kids = el.children;
+      for (var i = 0; i < kids.length; i++) {
+        var kid = kids[i];
+        ctx.elements++;
+        var section = inSection || /^(ARTICLE|SECTION)$/.test(kid.tagName);
+        if (inChrome) { walk(kid, true, section); continue; }
+        var tag = kid.tagName;
+        if (/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(tag)) { invisible += textOf(kid).length; continue; }
+        if (kid.hidden || kid.getAttribute("aria-hidden") === "true" ||
+            HIDDEN_CLASS.test(classText(kid)) ||
+            /(^|;)\s*display\s*:\s*none\s*(;|$)/i.test(kid.getAttribute("style") || "") ||
+            /(^|;)\s*visibility\s*:\s*hidden\s*(;|$)/i.test(kid.getAttribute("style") || "")) {
+          invisible += textOf(kid).length;
+          walk(kid, true, section);
+          continue;
+        }
+        if (/^(NAV|FOOTER|ASIDE|FORM)$/.test(tag) || (tag === "HEADER" && !section)) {
+          hard += textOf(kid).length;
+          walk(kid, true, section);
+          continue;
+        }
+        if (chromeSignal(kid)) { soft.push({ el: kid, text: textOf(kid).length }); walk(kid, true, section); continue; }
+        walk(kid, false, section);
+      }
+    })(body, false, false);
+    // the base a human can actually see: never script/style/hidden text
+    // (Stripe docs embeds 240k of JSON state in one <script>; counting it in
+    // the denominator would make real content look like a rounding error and
+    // defeat the dominance override)
+    ctx.total = Math.max(0, rawTotal - invisible);
+    var softExcluded = 0;
+    for (var j = 0; j < soft.length; j++) {
+      // a lexicon-chrome subtree with the majority of the page's visible text
+      // is demoted to content
+      if (soft[j].text * 2 > ctx.total) ctx.demoted.push(soft[j].el);
+      else softExcluded += soft[j].text;
+    }
+    ctx.visible = Math.max(0, ctx.total - hard - softExcluded);
+    return ctx;
+  }
+
+  function medianOf(values) {
+    if (!values.length) return 0;
+    var sorted = values.slice().sort(function (a, b) { return a - b; });
+    return sorted[Math.floor(sorted.length / 2)];
+  }
+
+  // Classify the page's structure so extraction can pick a fitting strategy.
+  // Pure: reads the DOM and returns data; the default extraction path is
+  // unchanged by profiling alone.
+  function analyzeDocument(doc, scopeInfo, ctx) {
+    ctx = ctx || analyzeChrome(doc);
+    scopeInfo = scopeInfo || findContent(doc, ctx);
+    var stats = ctx;
+    var scope = scopeInfo.el;
+    var scopeText = scope ? textOf(scope).length : 0;
+    var scopeCoverage = stats.visible > 0 ? Math.min(1, scopeText / stats.visible) : 0;
+    var dominance = scopeInfo.score / (scopeInfo.score + scopeInfo.nextScore + 1);
+
+    // sibling <article> groups (feeds, threads, comment pages). Items with
+    // their own h1-h3 heading are sections of a composite document (landing
+    // pages often use <article> for marketing sections), not feed items.
+    var articles = doc.querySelectorAll('article, [role="article"]');
+    var feedParent = null, feedCount = 0;
+    var byParent = [];
+    for (var i = 0; i < articles.length; i++) {
+      if (hidden(articles[i]) || textOf(articles[i]).length < PROFILER.feedMinText) continue;
+      if (articles[i].querySelector("h1,h2,h3")) continue;
+      var parent = articles[i].parentElement, at = -1;
+      for (var j = 0; j < byParent.length; j++) if (byParent[j].parent === parent) { at = j; break; }
+      if (at === -1) { byParent.push({ parent: parent, count: 0 }); at = byParent.length - 1; }
+      byParent[at].count++;
+      if (byParent[at].count > feedCount) { feedCount = byParent[at].count; feedParent = parent; }
+    }
+
+    // sectioned landing pages: several sections that each carry a heading
+    var sections = doc.querySelectorAll("section");
+    var sectioned = 0;
+    for (var si = 0; si < sections.length; si++) {
+      if (hidden(sections[si]) || chromeSignal(sections[si])) continue;
+      if (sections[si].querySelector("h1,h2,h3,h4,h5,h6") && textOf(sections[si]).length >= 20) sectioned++;
+    }
+    var headings = doc.querySelectorAll("h1,h2,h3,h4,h5,h6").length;
+    var headingDensity = stats.visible > 0 ? headings / (stats.visible / 1000) : 0;
+
+    var ps = doc.getElementsByTagName("p");
+    var paraLengths = [];
+    for (var pi = 0; pi < ps.length; pi++) {
+      var plen = textOf(ps[pi]).length;
+      if (plen > 0) paraLengths.push(plen);
+    }
+    var medianPara = medianOf(paraLengths);
+
+    // link-list pages (HN front page, link roundups): the page IS its links,
+    // so prose scoring finds nothing
+    var anchors = doc.getElementsByTagName("a");
+    var contentLinks = 0, linkChars = 0;
+    for (var li = 0; li < anchors.length; li++) {
+      var lt = textOf(anchors[li]);
+      if (lt.length < PROFILER.linkMinText || METADATA_LINK.test(lt)) continue;
+      if (!attr(anchors[li], "href")) continue;
+      contentLinks++;
+      linkChars += lt.length;
+    }
+    var linkTextShare = stats.visible > 0 ? linkChars / stats.visible : 0;
+
+    // Composite is checked before article: a sectioned landing page can still
+    // produce a dominant single wrapper (one group of sections), which the
+    // article rule would happily accept while silently dropping the rest. Two
+    // shapes: scopeCoverage < 0.75 (the winning scope misses whole sections),
+    // or very short median paragraphs (marketing blurbs the length filter
+    // drops even when the scope is right). Long sectioned articles (docs
+    // pages) keep the article path on both counts.
+    var archetype = "unknown";
+    if (stats.visible < PROFILER.sparseText && stats.elements > PROFILER.sparseElements) archetype = "sparse";
+    else if (feedCount >= PROFILER.feedMinItems) archetype = "feed";
+    else if (sectioned >= 3 && headingDensity >= 1 && (scopeCoverage < 0.75 || medianPara < 60)) archetype = "composite";
+    else if (dominance >= 0.55 && scopeCoverage >= 0.5) archetype = "article";
+    else if (contentLinks >= 10 && linkTextShare >= 0.35) archetype = "linklist";
+
+    // strategies the gate may auto-escalate to. "feed" is deliberately
+    // explicit-only: thread pages usually want the focused post, not every
+    // sibling reply.
+    var ranking = [];
+    if (archetype === "composite" || archetype === "unknown") ranking.push("composite");
+    if (archetype === "linklist") ranking.push("linklist");
+
+    return {
+      object: "page_profile",
+      archetype: archetype,
+      strategyRanking: ranking,
+      signals: {
+        visibleTextLength: stats.visible,
+        totalTextLength: stats.total,
+        elementCount: stats.elements,
+        scopeCoverage: Math.round(scopeCoverage * 100) / 100,
+        scoreDominance: Math.round(dominance * 100) / 100,
+        feedSiblings: feedCount,
+        feedParentSelector: feedParent ? selectorFor(feedParent) : "",
+        sectionedSections: sectioned,
+        headingDensity: Math.round(headingDensity * 100) / 100,
+        medianParagraphLength: medianPara,
+        contentLinks: contentLinks,
+        linkTextLength: linkChars,
+        linkTextShare: Math.round(linkTextShare * 100) / 100,
+        lazyMountSuspicion: archetype === "sparse"
+      },
+      __feedParent: feedParent
+    };
+  }
+
+  function blocksTextLength(blocks) {
+    var n = 0;
+    for (var i = 0; i < blocks.length; i++) n += blocks[i].text.length;
+    return n;
+  }
+
+  // Quality score in [0,1] used by the escalation gate: coverage dominates,
+  // then block count, captured-link sparsity, and heading structure.
+  function resultQuality(blocks, visibleTextLength, linkList) {
+    var captured = blocksTextLength(blocks);
+    var coverage = visibleTextLength > 0 ? Math.min(1, captured / visibleTextLength) : (captured ? 1 : 0);
+    var headings = 0, linked = 0;
+    for (var i = 0; i < blocks.length; i++) {
+      if (blocks[i].type === "heading") headings++;
+      for (var j = 0; j < blocks[i].links.length; j++) linked += blocks[i].links[j].text.length;
+    }
+    var density = captured > 0 ? Math.min(1, linked / captured) : 0;
+    // link-list results are links by definition; penalizing their link
+    // density would make the strategy unable to ever win the gate
+    var densityScore = linkList ? 1 : 1 - density;
+    var headingBonus = linkList ? 0.5 : (headings >= 2 ? 1 : headings / 2);
+    return 0.45 * coverage + 0.2 * (Math.min(blocks.length, 12) / 12) + 0.2 * densityScore + 0.15 * headingBonus;
+  }
+
+  // composite: landing pages and other multi-section documents where no
+  // single container dominates. Extract from <main> (or body) with the usual
+  // chrome/hidden/dedup filters, plus a relaxed length floor for short copy
+  // sitting directly under a captured heading.
+  function compositeRun(doc, options) {
+    var scope = doc.querySelector('main, [role="main"]') || doc.body;
+    if (!scope) return null;
+    var opts = {};
+    for (var k in options) opts[k] = options[k];
+    opts.headingAttachedMin = 2;
+    var stats = {};
+    var blocks = blocksFrom(scope, scope, doc, opts, stats);
+    return { name: "composite", blocks: blocks, scope: scope, stats: stats };
+  }
+
+  // feed: many sibling articles (timelines, comment pages). Explicit option
+  // only — never auto-selected (see analyzeDocument).
+  function feedRun(doc, options, profile) {
+    var scope = profile && profile.__feedParent;
+    if (!scope) return null;
+    var stats = {};
+    var blocks = blocksFrom(scope, scope, doc, options, stats);
+    return { name: "feed", blocks: blocks, scope: scope, stats: stats };
+  }
+
+  // linklist: pages whose content IS a list of links (HN front page, link
+  // roundups). The prose pipeline finds nothing (every candidate is
+  // link-dense), so emit the primary links of the strongest link container
+  // as list-item blocks.
+  function linkListRun(doc, options) {
+    var ctx = options.__chromeCtx;
+    var anchors = doc.getElementsByTagName("a");
+    var scores = [], seen = [];
+    function credit(el, points) {
+      if (!el || /^(HTML|BODY)$/.test(el.tagName)) return;
+      var at = seen.indexOf(el);
+      if (at === -1) { seen.push(el); scores.push(0); at = seen.length - 1; }
+      scores[at] += points;
+    }
+    for (var i = 0; i < anchors.length; i++) {
+      var a = anchors[i];
+      if (textOf(a).length < 2 || !attr(a, "href")) continue;
+      if (hidden(a)) continue;
+      // climb with decay so the container that HOLDS the list wins, not the
+      // individual link wrappers (HN nests its story table inside layout
+      // tables; the footer link row must not outscore it)
+      var depth = 0;
+      for (var anc = a.parentElement; anc && depth < 6 && !/^(HTML|BODY)$/.test(anc.tagName); anc = anc.parentElement) {
+        credit(anc, 1 / (depth + 1));
+        depth++;
+      }
+    }
+    var best = null, bestScore = 0;
+    for (var j = 0; j < seen.length; j++) {
+      if (scores[j] > bestScore) { bestScore = scores[j]; best = seen[j]; }
+    }
+    if (!best) return null;
+    var out = [], used = {}, rowWinner = {};
+    function rowOf(el) {
+      for (var n = el.parentElement; n && n !== best; n = n.parentElement) {
+        if (/^(TR|LI|P|DT|DD)$/.test(n.tagName)) return n;
+      }
+      return el.parentElement || el;
+    }
+    function collect(primaryOnly) {
+      var list = best.getElementsByTagName("a");
+      for (var k = 0; k < list.length; k++) {
+        var el = list[k];
+        var text = textOf(el);
+        if (text.length < PROFILER.linkMinText || METADATA_LINK.test(text)) continue;
+        var href = absoluteUrl(doc, attr(el, "href"));
+        if (!href) continue;
+        if (hidden(el) || flagged(el, best, ctx)) continue;
+        // primary links: the link dominates its parent's text, the way a
+        // story title fills its row; byline/nav links share their parent
+        // with other text and are excluded
+        if (primaryOnly) {
+          var parentLen = textOf(el.parentElement).length;
+          if (parentLen - text.length > 3 && text.length / (parentLen || 1) < 0.5) continue;
+        }
+        // one link per row: the longest (a title beats its "(site.com)"
+        // sitelink and the row's metadata links)
+        var row = rowOf(el);
+        var at = -1;
+        for (var r = 0; r < out.length; r++) if (rowWinner[r] === row) { at = r; break; }
+        if (at !== -1 && out[at].text.length >= text.length) continue;
+        var key = href + "|" + normalized(text);
+        if (used[key]) continue;
+        var block = {
+          object: "block",
+          type: "list_item",
+          tag: "A",
+          level: 0,
+          text: text.slice(0, 8000),
+          links: options.includeLinks ? [{ text: text, href: href }] : [],
+          runs: [{ type: "link", text: text, href: href }],
+          source: { selector: selectorFor(el), index: 0 },
+          list: { depth: 0, ordered: false, index: 0 }
+        };
+        if (at !== -1) {
+          used[out[at].links.length ? out[at].links[0].href + "|" + normalized(out[at].text) : out[at].text] = false;
+          out[at] = block;
+        } else {
+          rowWinner[out.length] = row;
+          out.push(block);
+        }
+        used[key] = true;
+        if (out.length >= options.maxBlocks) break;
+      }
+    }
+    collect(true);
+    if (out.length < 5) collect(false); // relax: few pages mark up primary links cleanly
+    for (var b = 0; b < out.length; b++) {
+      out[b].source.index = b;
+      out[b].list.index = b + 1;
+    }
+    if (out.length < 2) return null;
+    return { name: "linklist", blocks: out, scope: best, stats: {} };
+  }
+
+  function runStrategy(name, doc, options, profile) {
+    if (name === "composite") return compositeRun(doc, options);
+    if (name === "feed") return feedRun(doc, options, profile);
+    if (name === "linklist") return linkListRun(doc, options);
+    return null;
+  }
+
+  function shouldEscalate(profile, blocks, scopeInfo, coverage) {
+    if (!profile.strategyRanking.length) return false;
+    if (blocks.length < 2) return true;
+    // the profiler found a composite page: try the fitting strategy whenever
+    // the default result left a meaningful share of the page behind (the
+    // quality gate still decides whether the alternative is actually better)
+    if (profile.archetype === "composite" && coverage < 0.8) return true;
+    if (coverage < PROFILER.lowCoverage && profile.signals.visibleTextLength > PROFILER.substantialText) return true;
+    var ambiguous = scopeInfo.nextScore && scopeInfo.score / (scopeInfo.nextScore + 1) < 1.2;
+    if (ambiguous && profile.archetype === "composite") return true;
+    return false;
   }
 
   function elementFromSelectionNode(node) {
@@ -797,7 +1255,10 @@
 
   function extract(doc, options) {
     options = defaults(options);
-    var scopeInfo = findContent(doc);
+    var chromeCtx = analyzeChrome(doc);
+    options.__chromeCtx = chromeCtx;
+    var scopeInfo = findContent(doc, chromeCtx);
+    var profile = analyzeDocument(doc, scopeInfo, chromeCtx);
     var scope = scopeInfo.el;
     var blockStats = {};
     var tableStats = {};
@@ -815,6 +1276,44 @@
       blockStats = {};
       blocks = blocksFrom(doc.body, doc.body, doc, options, blockStats);
       fallbackScope = true;
+    }
+
+    // Adaptive escalation: when the default single-scope result covers too
+    // little of the visible page, try the profiler-ranked alternative
+    // strategy and keep it only when it wins by a clear quality margin, so
+    // pages well served by the default model keep identical output.
+    var strategyUsed = "article";
+    var attempted = ["article"];
+    var escalationRejected = false;
+    var visible = profile.signals.visibleTextLength;
+    var coverage = visible > 0 ? Math.min(1, blocksTextLength(blocks) / visible) : (blocks.length ? 1 : 0);
+    var strategyOpt = options.strategy;
+    if (strategyOpt !== "article" && doc.body) {
+      var forced = strategyOpt !== "auto";
+      var ranking = forced ? [strategyOpt]
+        : (shouldEscalate(profile, blocks, scopeInfo, coverage) ? profile.strategyRanking : []);
+      var defaultQuality = resultQuality(blocks, visible);
+      for (var ri = 0; ri < ranking.length; ri++) {
+        if (ranking[ri] === "article") continue;
+        var alt = runStrategy(ranking[ri], doc, options, profile);
+        if (!alt || alt.blocks.length < 2) continue;
+        attempted.push(alt.name);
+        if (forced || resultQuality(alt.blocks, visible, alt.name === "linklist") > defaultQuality + PROFILER.qualityMargin) {
+          blocks = alt.blocks;
+          scope = alt.scope;
+          blockStats = alt.stats;
+          fallbackScope = alt.scope !== scopeInfo.el;
+          strategyUsed = alt.name;
+          coverage = visible > 0 ? Math.min(1, blocksTextLength(blocks) / visible) : 1;
+          // a link list's content IS its links; measure coverage against
+          // visible link text, not all visible text (bylines/metadata)
+          if (alt.name === "linklist" && profile.signals.linkTextLength > 0) {
+            coverage = Math.min(1, blocksTextLength(blocks) / profile.signals.linkTextLength);
+          }
+          break;
+        }
+        escalationRejected = true;
+      }
     }
     var paragraphs = paragraphsFromBlocks(blocks);
     var sections = sectionsFromBlocks(blocks);
@@ -838,7 +1337,7 @@
       blocks: blocks,
       sections: sections,
       citations: citations,
-      links: options.includeLinks ? linksFrom(scope || doc.body, doc) : [],
+      links: options.includeLinks ? linksFrom(scope || doc.body, doc, chromeCtx) : [],
       images: options.includeImages ? imagesFrom(scope || doc.body, doc) : [],
       tables: options.includeTables ? tablesFrom(scope || doc.body, tableStats) : [],
       selection: selectionFrom(doc),
@@ -857,7 +1356,16 @@
         maxTablesHit: !!tableStats.maxTablesHit,
         fallbackScopeUsed: fallbackScope,
         unpositionedTables: 0,
-        unpositionedImages: 0
+        unpositionedImages: 0,
+        // adaptive-extraction signals: which strategy produced this result,
+        // what the profiler saw, and how much of the visible page was captured
+        strategy: strategyUsed,
+        strategiesAttempted: attempted,
+        escalationRejected: escalationRejected,
+        coverage: Math.round(coverage * 100) / 100,
+        visibleTextLength: visible,
+        archetype: profile.archetype,
+        lazyMountSuspicion: !!profile.signals.lazyMountSuspicion
       }
     };
     // anchor data tables and content images to their position in the block
@@ -875,7 +1383,7 @@
     article.contentHash = hashString(JSON.stringify({
       title: article.title,
       byline: article.byline,
-      url: article.canonicalUrl || article.url,
+      url: article.url || article.canonicalUrl,
       text: article.text,
       tables: article.tables
     }));
@@ -987,7 +1495,11 @@
     var out = ["---"];
     var pairs = [
       ["title", article.title], ["byline", article.byline], ["site", article.siteName],
-      ["url", article.canonicalUrl || article.url], ["published", article.publishedAt],
+      // url is always the page actually captured; a differing canonical is
+      // recorded separately instead of silently replacing it
+      ["url", article.url || article.canonicalUrl],
+      ["canonical", article.canonicalUrl && article.canonicalUrl !== article.url ? article.canonicalUrl : ""],
+      ["published", article.publishedAt],
       ["modified", article.modifiedAt], ["captured", article.capturedAt],
       ["language", article.language], ["contentType", article.contentType],
       ["captureMode", article.captureMode],
@@ -1005,6 +1517,8 @@
     if (article.tables) out.push("tableCount: " + article.tables.length);
     if (typeof article.confidence === "number") out.push("confidence: " + article.confidence);
     if (article.warnings && article.warnings.length) out.push("warnings: [" + article.warnings.join(", ") + "]");
+    if (article.diagnostics && article.diagnostics.strategy) out.push("strategy: " + yamlEscape(article.diagnostics.strategy));
+    if (article.diagnostics && typeof article.diagnostics.coverage === "number") out.push("coverage: " + article.diagnostics.coverage);
     out.push("---");
     return out.join("\n");
   }
@@ -1629,7 +2143,7 @@
     article.contentHash = hashString(JSON.stringify({
       title: article.title,
       byline: article.byline,
-      url: article.canonicalUrl || article.url,
+      url: article.url || article.canonicalUrl,
       text: article.text,
       tables: article.tables
     }));
@@ -1867,5 +2381,14 @@
     }
   }
 
-  return { extract: extract, fromHTML: fromHTML, fromImage: fromImage, toMarkdown: toMarkdown, toHTML: toHTML, run: run };
+  // Public profiler view: classifies the page structure without extracting.
+  // Internal element references are stripped so the result is JSON-safe.
+  function analyze(doc) {
+    var profile = analyzeDocument(doc, null, analyzeChrome(doc));
+    var out = {};
+    for (var k in profile) if (k.charAt(0) !== "_") out[k] = profile[k];
+    return out;
+  }
+
+  return { extract: extract, fromHTML: fromHTML, fromImage: fromImage, toMarkdown: toMarkdown, toHTML: toHTML, run: run, analyze: analyze };
 });

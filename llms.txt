@@ -77,6 +77,17 @@ shows an in-page copy panel. It never posts to an app-specific endpoint by defau
 
 maxBlocks: 150 (default), minTextLength: 25 (default; 0 keeps all),
 includeLinks / includeImages / includeTables (all true by default).
+strategy: "auto" (default) profiles the page and may escalate to a fitting
+extraction strategy ("composite" for sectioned landing pages, "linklist" for
+link-list pages like the HN front page) when the default single-scope result
+covers too little of the visible page; "article" pins the classic behavior,
+"composite" / "feed" / "linklist" force one. Chrome detection matches whole
+words (so "SharedPageLayout" is content, "share-buttons" is chrome) and a
+name-flagged container holding most of the page's text is demoted to content
+(HN comment trees, GitHub repo pages). Mantis.analyze(document)
+returns the page profile without extracting. Diagnostics to route on:
+diagnostics.strategy / coverage / archetype / lazyMountSuspicion, warnings
+low_coverage and content_not_mounted (recapture after load/scroll).
 Hard caps: links 200, images 100, tables 50.
 selection is always null in Node/fromHTML contexts.
 
@@ -86,6 +97,7 @@ title:       og:title → twitter:title → first <h1> → document.title (strip
 byline:      author → article:author → byl → parsely-author
 hero:        og:image → twitter:image → twitter:image:src
 canonicalUrl: <link rel="canonical"> → url
+frontmatter url: always the captured page URL; a differing canonical is a separate `canonical:` line
 siteName:    og:site_name
 language:    <html lang> → meta[name=language]
 publishedAt: article:published_time → date
