@@ -111,6 +111,47 @@ export interface MantisDiagnostics {
   unpositionedTables?: number;
   /** Images not spliced into the flow and appended at the tail. */
   unpositionedImages?: number;
+  /** Extraction strategy that produced the result ("article" is the default pipeline). */
+  strategy?: string;
+  /** Strategies run during this extraction, in order. */
+  strategiesAttempted?: string[];
+  /** An alternative strategy ran but lost the quality gate to the default. */
+  escalationRejected?: boolean;
+  /** Share of visible page text captured (0-1). Low values indicate a partial capture. */
+  coverage?: number;
+  /** Visible (non-chrome, non-hidden) text length of the page, in characters. */
+  visibleTextLength?: number;
+  /** Profiler classification of the page structure. */
+  archetype?: "article" | "composite" | "feed" | "app-shell" | "sparse" | "linklist" | "unknown";
+  /** Page looks like a client-rendered app whose content has not mounted yet. */
+  lazyMountSuspicion?: boolean;
+}
+
+export type MantisStrategy = "auto" | "article" | "composite" | "feed" | "linklist";
+
+export interface MantisPageProfile {
+  object: "page_profile";
+  archetype: string;
+  strategyRanking: string[];
+  signals: {
+    visibleTextLength: number;
+    totalTextLength: number;
+    elementCount: number;
+    scopeCoverage: number;
+    scoreDominance: number;
+    feedSiblings: number;
+    feedParentSelector: string;
+    sectionedSections: number;
+    headingDensity: number;
+    medianParagraphLength: number;
+    /** Links with substantial non-metadata text (link-list detection). */
+    contentLinks: number;
+    /** Total characters of such link text. */
+    linkTextLength: number;
+    /** Share of visible page text that is link text. */
+    linkTextShare: number;
+    lazyMountSuspicion: boolean;
+  };
 }
 
 export interface MantisExtractOptions {
@@ -119,6 +160,13 @@ export interface MantisExtractOptions {
   includeLinks?: boolean;
   includeImages?: boolean;
   includeTables?: boolean;
+  /**
+   * Extraction strategy. "auto" (default) profiles the page and may escalate
+   * to a fitting strategy when the default single-scope result covers too
+   * little of the visible page; a named strategy forces it. "article" is the
+   * classic single-scope pipeline.
+   */
+  strategy?: MantisStrategy;
 }
 
 export interface MantisDOMParserLike {
@@ -240,6 +288,7 @@ export function fromImage(
   visionFn: MantisImageVisionFn,
   options?: MantisFromImageOptions
 ): Promise<MantisArticle>;
+export function analyze(doc: Document): MantisPageProfile;
 export function toMarkdown(article: Partial<MantisArticle>, options?: MantisMarkdownOptions): string;
 export function toHTML(article: Partial<MantisArticle>): string;
 export function run(options?: MantisRunOptions): void;
