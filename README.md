@@ -352,6 +352,15 @@ npm run benchmark
 npm run perf
 ```
 
+`npm run benchmark` runs two instruments over the fixture corpus: the fidelity gate
+(expected/forbidden strings, metadata, warnings, diagnostics) and a word-level scorecard —
+precision / recall / F1 of the extracted content against per-fixture gold annotations
+(`gold` selectors in `fixtures/expectations.json`), reported per fixture and aggregated per
+page type, plus extraction latency and confidence. Each gold-annotated fixture also gates on
+a minimum F1, so extraction-quality regressions fail the build rather than hide in an
+aggregate. `npm run scorecard` emits the same scorecard as JSON for machine comparison
+against other extractors.
+
 `npm run test:browser` runs the demo in real Chromium. Install Playwright locally first; see
 `demo/browser-test.js`.
 

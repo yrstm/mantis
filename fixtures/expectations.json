@@ -24,6 +24,12 @@
     "diagnostics": {
       "minConfidence": 0.7,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "article",
+    "gold": {
+      "include": [
+        "main article"
+      ]
     }
   },
   {
@@ -45,6 +51,12 @@
     "diagnostics": {
       "minConfidence": 0.55,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "article",
+    "gold": {
+      "include": [
+        "body > article"
+      ]
     }
   },
   {
@@ -66,6 +78,15 @@
     "diagnostics": {
       "minConfidence": 0.65,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "article",
+    "gold": {
+      "include": [
+        "main article"
+      ],
+      "exclude": [
+        ".share.tools"
+      ]
     }
   },
   {
@@ -87,6 +108,16 @@
     "diagnostics": {
       "minConfidence": 0.65,
       "scopeTag": "SECTION"
+    },
+    "pageType": "newsletter",
+    "gold": {
+      "include": [
+        "main article"
+      ],
+      "exclude": [
+        ".comment-section"
+      ],
+      "minF1": 0.9
     }
   },
   {
@@ -111,6 +142,12 @@
     "diagnostics": {
       "minConfidence": 0.65,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "docs",
+    "gold": {
+      "include": [
+        "main article"
+      ]
     }
   },
   {
@@ -131,6 +168,13 @@
     "diagnostics": {
       "minConfidence": 0.65,
       "scopeTag": "SECTION"
+    },
+    "pageType": "article",
+    "gold": {
+      "include": [
+        "main article"
+      ],
+      "minF1": 0.93
     }
   },
   {
@@ -151,6 +195,15 @@
     "diagnostics": {
       "minConfidence": 0.65,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "article",
+    "gold": {
+      "include": [
+        "main article"
+      ],
+      "exclude": [
+        ".mobile-article"
+      ]
     }
   },
   {
@@ -177,6 +230,12 @@
     "diagnostics": {
       "minConfidence": 0.55,
       "scopeTag": "MAIN"
+    },
+    "pageType": "docs",
+    "gold": {
+      "include": [
+        "main.docs-content"
+      ]
     }
   },
   {
@@ -203,6 +262,12 @@
     "diagnostics": {
       "minConfidence": 0.65,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "recipe",
+    "gold": {
+      "include": [
+        "main article"
+      ]
     }
   },
   {
@@ -222,6 +287,12 @@
     "diagnostics": {
       "minConfidence": 0.65,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "forum",
+    "gold": {
+      "include": [
+        "main article.post-content"
+      ]
     }
   },
   {
@@ -238,6 +309,12 @@
     "diagnostics": {
       "minConfidence": 0.55,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "article",
+    "gold": {
+      "include": [
+        "main article"
+      ]
     }
   },
   {
@@ -259,6 +336,12 @@
     "diagnostics": {
       "minConfidence": 0.65,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "article",
+    "gold": {
+      "include": [
+        "main article"
+      ]
     }
   },
   {
@@ -281,6 +364,12 @@
     "diagnostics": {
       "minConfidence": 0.6,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "social",
+    "gold": {
+      "include": [
+        "main article:first-of-type [data-testid=tweetText]"
+      ]
     }
   },
   {
@@ -303,6 +392,12 @@
     "diagnostics": {
       "minConfidence": 0.6,
       "scopeTag": "ARTICLE"
+    },
+    "pageType": "social",
+    "gold": {
+      "include": [
+        "main article:first-of-type [data-testid=tweetText]"
+      ]
     }
   },
   {
@@ -329,6 +424,17 @@
       "strategy": "composite",
       "archetype": "composite",
       "minCoverage": 0.8
+    },
+    "pageType": "landing",
+    "gold": {
+      "include": [
+        ".hero h1",
+        ".hero p",
+        ".sections-group-a h2",
+        ".sections-group-a p",
+        ".sections-group-b h2",
+        ".sections-group-b p"
+      ]
     }
   },
   {
@@ -351,6 +457,14 @@
     },
     "diagnostics": {
       "strategy": "composite"
+    },
+    "pageType": "landing",
+    "gold": {
+      "include": [
+        "main h1",
+        "main h3",
+        "main p"
+      ]
     }
   },
   {
@@ -365,6 +479,12 @@
     "forbidden": [],
     "metadata": {
       "title": "Launch Postmortem"
+    },
+    "pageType": "forum",
+    "gold": {
+      "include": [
+        ".comment-tree .commtext p"
+      ]
     }
   },
   {
@@ -385,6 +505,12 @@
     "diagnostics": {
       "strategy": "linklist",
       "archetype": "linklist"
+    },
+    "pageType": "linklist",
+    "gold": {
+      "include": [
+        ".titleline > a"
+      ]
     }
   },
   {
@@ -400,6 +526,12 @@
     ],
     "metadata": {
       "title": "Toolkit"
+    },
+    "pageType": "docs",
+    "gold": {
+      "include": [
+        "article.markdown-body"
+      ]
     }
   },
   {
@@ -412,6 +544,38 @@
     "forbidden": [],
     "metadata": {
       "title": "Utility Shell Post Title"
+    },
+    "pageType": "article",
+    "gold": {
+      "include": [
+        ".post-content h1",
+        ".post-content p"
+      ],
+      "minF1": 0.93
+    }
+  },
+  {
+    "name": "lazy app shell (content not mounted)",
+    "file": "lazy-sparse.html",
+    "expected": [],
+    "forbidden": [
+      "Loading"
+    ],
+    "metadata": {
+      "title": "Lazy App",
+      "status": "partial"
+    },
+    "warnings": [
+      "content_not_mounted"
+    ],
+    "diagnostics": {
+      "archetype": "sparse"
+    },
+    "pageType": "app-shell",
+    "gold": {
+      "include": [
+        "#app h1"
+      ]
     }
   }
 ]
