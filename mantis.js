@@ -196,21 +196,47 @@
     return !!(ctx && ctx.demoted && ctx.demoted.indexOf(el) !== -1);
   }
 
-  function hidden(el) {
-    for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
-      if (/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) return true;
-      if (n.hidden || n.getAttribute("aria-hidden") === "true") return true;
-      if (HIDDEN_CLASS.test(classText(n))) return true;
-      var style = n.getAttribute("style") || "";
-      if (/(^|;)\s*display\s*:\s*none\s*(;|$)/i.test(style)) return true;
-      if (/(^|;)\s*visibility\s*:\s*hidden\s*(;|$)/i.test(style)) return true;
-      try {
-        var w = n.ownerDocument && n.ownerDocument.defaultView;
-        var cs = w && w.getComputedStyle ? w.getComputedStyle(n) : null;
-        if (cs && (cs.display === "none" || cs.visibility === "hidden")) return true;
-      } catch (e) { /* computed style unavailable */ }
-    }
+  function hiddenSelf(n) {
+    if (/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) return true;
+    if (n.hidden || n.getAttribute("aria-hidden") === "true") return true;
+    if (HIDDEN_CLASS.test(classText(n))) return true;
+    var style = n.getAttribute("style") || "";
+    if (/(^|;)\s*display\s*:\s*none\s*(;|$)/i.test(style)) return true;
+    if (/(^|;)\s*visibility\s*:\s*hidden\s*(;|$)/i.test(style)) return true;
+    try {
+      var w = n.ownerDocument && n.ownerDocument.defaultView;
+      var cs = w && w.getComputedStyle ? w.getComputedStyle(n) : null;
+      if (cs && (cs.display === "none" || cs.visibility === "hidden")) return true;
+    } catch (e) { /* computed style unavailable */ }
     return false;
+  }
+
+  // Per-extraction memo for hidden(): the DOM is stable during a single
+  // extract()/analyze() pass and the same ancestors are re-checked from many
+  // passes (scoring, profiler, strategies, links/images/tables), so caching
+  // per element turns O(nodes x depth) getComputedStyle work into O(nodes).
+  // Runtime API only (no syntax change): falls back to uncached on ES5 hosts.
+  var hiddenCache = null;
+
+  function withHiddenCache(fn) {
+    var owns = !hiddenCache && typeof WeakMap === "function";
+    if (owns) hiddenCache = new WeakMap();
+    try {
+      return fn();
+    } finally {
+      if (owns) hiddenCache = null;
+    }
+  }
+
+  function hidden(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (hiddenCache) {
+      var cached = hiddenCache.get(el);
+      if (cached !== undefined) return cached;
+    }
+    var result = hiddenSelf(el) || hidden(el.parentElement);
+    if (hiddenCache) hiddenCache.set(el, result);
+    return result;
   }
 
   function flagged(el, stopAt, ctx) {
@@ -1254,6 +1280,10 @@
   }
 
   function extract(doc, options) {
+    return withHiddenCache(function () { return extractImpl(doc, options); });
+  }
+
+  function extractImpl(doc, options) {
     options = defaults(options);
     var chromeCtx = analyzeChrome(doc);
     options.__chromeCtx = chromeCtx;
@@ -2431,10 +2461,12 @@
   // Public profiler view: classifies the page structure without extracting.
   // Internal element references are stripped so the result is JSON-safe.
   function analyze(doc) {
-    var profile = analyzeDocument(doc, null, analyzeChrome(doc));
-    var out = {};
-    for (var k in profile) if (k.charAt(0) !== "_") out[k] = profile[k];
-    return out;
+    return withHiddenCache(function () {
+      var profile = analyzeDocument(doc, null, analyzeChrome(doc));
+      var out = {};
+      for (var k in profile) if (k.charAt(0) !== "_") out[k] = profile[k];
+      return out;
+    });
   }
 
   return { extract: extract, fromHTML: fromHTML, fromImage: fromImage, toMarkdown: toMarkdown, toHTML: toHTML, run: run, analyze: analyze };
