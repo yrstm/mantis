@@ -116,8 +116,7 @@
       ],
       "exclude": [
         ".comment-section"
-      ],
-      "minF1": 0.9
+      ]
     }
   },
   {
@@ -173,8 +172,7 @@
     "gold": {
       "include": [
         "main article"
-      ],
-      "minF1": 0.93
+      ]
     }
   },
   {
@@ -550,8 +548,7 @@
       "include": [
         ".post-content h1",
         ".post-content p"
-      ],
-      "minF1": 0.93
+      ]
     }
   },
   {

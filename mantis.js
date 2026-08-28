@@ -1315,11 +1315,58 @@
         escalationRejected = true;
       }
     }
+    var h1 = doc.querySelector("h1");
+    var title = meta(doc, "og:title") || meta(doc, "twitter:title") || (h1 && textOf(h1)) || cleanTitle(doc.title || "");
+    // Headline rescue: when the winning scope is an inner body container
+    // (Substack's section.body, Medium's section[data-field=body]), the page
+    // h1 sits outside the scope and the block stream loses the headline even
+    // though title metadata finds it. Prepend the visible, non-chrome h1
+    // matching the derived title so sections, citations, and the flattened
+    // text keep the headline. Article strategy only: composite/linklist
+    // results assemble their own heading structure.
+    if (strategyUsed === "article" && blocks.length && scope && doc.body && title) {
+      var hasTopHeading = false;
+      for (var hb = 0; hb < blocks.length; hb++) {
+        if (blocks[hb].type === "heading" && blocks[hb].level === 1) { hasTopHeading = true; break; }
+      }
+      if (!hasTopHeading) {
+        var headline = null;
+        var h1s = doc.body.querySelectorAll("h1");
+        for (var hc = 0; hc < h1s.length; hc++) {
+          var cand = h1s[hc];
+          if (scope.contains(cand)) continue; // in-scope h1s were filtered for a reason
+          if (hidden(cand) || flagged(cand, doc.body, chromeCtx)) continue;
+          var candText = textOf(cand);
+          if (!candText || normalized(candText) !== normalized(title)) continue;
+          headline = cand;
+          break;
+        }
+        if (headline) {
+          var headlineText = textOf(headline);
+          var headlineDup = false;
+          for (var hd = 0; hd < blocks.length; hd++) {
+            if (normalized(blocks[hd].text) === normalized(headlineText)) { headlineDup = true; break; }
+          }
+          if (!headlineDup) {
+            var headBlock = {
+              object: "block",
+              type: "heading",
+              tag: "H1",
+              level: 1,
+              text: headlineText.slice(0, 8000),
+              links: [],
+              source: { selector: selectorFor(headline), index: 0 }
+            };
+            headBlock.__el = headline;
+            for (var hs = 0; hs < blocks.length; hs++) blocks[hs].source.index = hs + 1;
+            blocks.unshift(headBlock);
+          }
+        }
+      }
+    }
     var paragraphs = paragraphsFromBlocks(blocks);
     var sections = sectionsFromBlocks(blocks);
     var citations = citationsFromBlocks(blocks);
-    var h1 = doc.querySelector("h1");
-    var title = meta(doc, "og:title") || meta(doc, "twitter:title") || (h1 && textOf(h1)) || cleanTitle(doc.title || "");
     var pageUrl = doc.location && doc.location.href ? doc.location.href : (doc.__mantisBase || "");
     var article = {
       object: "article",

@@ -1258,6 +1258,43 @@ Use the [source docs](https://example.com/source) and the \`billing:read\` scope
     assert.strictEqual(a.diagnostics.scopeTag, "DIV");
     assert.ok(a.text.includes("Scoped Header Title"), "article header captured when scope is the inner div");
   });
+  test("out-of-scope headline matching the title is rescued as the lead heading", () => {
+    // Substack/Medium pattern: the h1 sits in the article wrapper while the
+    // winning scope is an inner body section; the block stream must still
+    // lead with the headline.
+    const html = fs.readFileSync(path.join(__dirname, "fixtures", "substack-like.html"), "utf8");
+    const a = Mantis.extract(new JSDOM(html, { pretendToBeVisual: true }).window.document);
+    assert.strictEqual(a.blocks[0].type, "heading");
+    assert.strictEqual(a.blocks[0].level, 1);
+    assert.strictEqual(a.blocks[0].text, "A Letter From the Future");
+    assert.strictEqual(a.sections[0].heading, "A Letter From the Future");
+    // block indices stay consistent after the unshift
+    assert.strictEqual(a.blocks[0].source.index, 0);
+    assert.strictEqual(a.blocks[1].source.index, 1);
+  });
+  test("out-of-scope h1 that does not match the title is not rescued", () => {
+    const doc = new JSDOM(`<!doctype html><html><head><title>t</title>
+      <meta property="og:title" content="The Real Story Title"></head><body>
+      <h1>SiteName Wordmark</h1>
+      <main><article><section class="body">
+        <p>${"Body paragraph one with plenty of running prose here. ".repeat(4)}</p>
+        <p>${"Body paragraph two with plenty of running prose here. ".repeat(4)}</p>
+      </section></article></main>
+    </body></html>`, { pretendToBeVisual: true }).window.document;
+    const a = Mantis.extract(doc);
+    assert.ok(!a.text.includes("SiteName Wordmark"), "logo h1 stays out of the block stream");
+  });
+  test("chrome h1 is not rescued even when it matches the title", () => {
+    const doc = new JSDOM(`<!doctype html><html><head><title>Masthead Title</title></head><body>
+      <header><h1>Masthead Title</h1></header>
+      <main><article><section class="body">
+        <p>${"Body paragraph one with plenty of running prose here. ".repeat(4)}</p>
+        <p>${"Body paragraph two with plenty of running prose here. ".repeat(4)}</p>
+      </section></article></main>
+    </body></html>`, { pretendToBeVisual: true }).window.document;
+    const a = Mantis.extract(doc);
+    assert.ok(!a.text.includes("Masthead Title"), "site-level header h1 stays chrome");
+  });
   test("giant embedded script does not defeat the dominance override", () => {
     const doc = new JSDOM(`<!doctype html><html><head><title>t</title></head><body>
       <div class="Shell Sidebar--expanded"><main><article>
