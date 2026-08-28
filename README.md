@@ -18,7 +18,7 @@ The package name is `@yrstm/mantis`. It is not published to the npm registry yet
 current public build from its pinned GitHub commit:
 
 ```sh
-npm install https://github.com/yrstm/mantis/archive/c893c10d1c9e798579bde233fbed3ba58dbb917f.tar.gz
+npm install https://github.com/yrstm/mantis/archive/2ea75efb6001de5a2097d645144aeac529b56567.tar.gz
 ```
 
 The official Mantis browser extension is packaged separately from this open-source library repo.

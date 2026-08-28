@@ -194,6 +194,13 @@
 
       <section class="changelog" aria-label="Changes">
         <article class="change">
+          <time datetime="2026-08-28">2026-08-28</time>
+          <div>
+            <h2>Measured extraction quality</h2>
+            <p>The benchmark now scores word-level precision, recall, and F1 against per-fixture gold annotations, broken out per page type, with latency and confidence alongside — and gates on a minimum F1 per fixture. The instrument immediately paid for itself: pages whose headline sits outside the winning content scope (Substack, Medium, header-wrapped titles) now keep the h1 as the lead block, and a visibility-check memo made extraction up to 6x faster on style-heavy pages.</p>
+          </div>
+        </article>
+        <article class="change">
           <time datetime="2026-07-29">2026-07-29</time>
           <div>
             <h2>Extension becomes the main public page</h2>
