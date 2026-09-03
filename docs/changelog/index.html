@@ -194,6 +194,13 @@
 
       <section class="changelog" aria-label="Changes">
         <article class="change">
+          <time datetime="2026-09-01">2026-09-01</time>
+          <div>
+            <h2>Nested blocks, code furniture, and richer metadata</h2>
+            <p>Containers that hold paragraphs no longer fuse or duplicate their text: a list item with several paragraphs is one item, a blockquote made of paragraphs becomes one quoted block per paragraph, and code nested in a list item stays a fenced block. Code blocks drop copy buttons and line-number gutters and pick up the language from GitHub-style wrappers; headings drop permalink anchors; hidden inline labels, soft hyphens, and zero-width spaces never reach the text. Figure captions are captured, lazy-loaded images resolve to their real source, header-row tables with paragraph cells render in flow under their heading, and WordPress-style <code>entry-header</code> blocks (headline, standfirst, byline) are content again. Byline, dates, and site name now fall back to schema.org JSON-LD and the visible byline, and <code>og:title</code> loses its <code>| Site Name</code> suffix when the page identifies it.</p>
+          </div>
+        </article>
+        <article class="change">
           <time datetime="2026-08-28">2026-08-28</time>
           <div>
             <h2>Measured extraction quality</h2>

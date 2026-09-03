@@ -89,8 +89,17 @@ See the [error reference](https://docs.example.com/api/errors) for retry behavio
 - Agent support: `citations`, `status`, `warnings`, `contentType`, `contentHash`, `textHash`
 - Debugging: `confidence`, `diagnostics`
 
-Blocks preserve headings, paragraphs, blockquotes, code blocks, list items, inline links, bold,
-italic, inline code, source selectors, and text offsets.
+Blocks preserve headings, paragraphs, blockquotes, code blocks, list items, figure captions,
+inline links, bold, italic, inline code, source selectors, and text offsets. Nested containers
+are flattened once: a `<li>` holding several paragraphs is one list item, a `<blockquote>` made
+of paragraphs is one quoted block per paragraph, and code nested inside a list item stays a
+fenced block. Code blocks drop copy buttons and line-number gutters; headings drop permalink
+anchors; hidden inline nodes and soft hyphens never reach the text.
+
+Metadata falls back from `<meta>` tags to schema.org JSON-LD (`headline`, `author`,
+`datePublished`, `dateModified`, `publisher`) and then to the visible byline (`rel="author"`,
+`itemprop="author"`, `.byline`) and `<time datetime>` in the content. A `" | Site Name"` part in
+`og:title` is dropped when the visible h1 or `og:site_name` identifies it.
 
 ## API
 

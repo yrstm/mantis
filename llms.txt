@@ -93,17 +93,49 @@ selection is always null in Node/fromHTML contexts.
 
 ## Metadata sources (first match wins)
 
-title:       og:title → twitter:title → first <h1> → document.title (strips " | Site Name" suffixes)
-byline:      author → article:author → byl → parsely-author
+title:       og:title → twitter:title (a " | Site Name" part is dropped when the visible h1 or
+             og:site_name identifies it) → first visible non-chrome <h1> → JSON-LD headline →
+             document.title (site part stripped, else first separator-delimited part)
+byline:      author → article:author → byl → parsely-author → JSON-LD author(s) →
+             visible byline (rel=author, itemprop=author, .byline/.author; chrome and comments excluded)
 hero:        og:image → twitter:image → twitter:image:src
 canonicalUrl: <link rel="canonical"> → url
 frontmatter url: always the captured page URL; a differing canonical is a separate `canonical:` line
-siteName:    og:site_name
+siteName:    og:site_name → JSON-LD publisher.name → application-name
 language:    <html lang> → meta[name=language]
-publishedAt: article:published_time → date
-modifiedAt:  article:modified_time → lastmod
+publishedAt: article:published_time → date → JSON-LD datePublished → pubdate/dc.date/… metas →
+             [itemprop=datePublished] / time[pubdate] / first <time datetime> in scope
+modifiedAt:  article:modified_time → lastmod → JSON-LD dateModified → og:updated_time → [itemprop=dateModified]
 
-Images fall back to data-src when src is absent (lazy-load pattern).
+JSON-LD (`script[type="application/ld+json"]`, including @graph) is parsed defensively; malformed
+scripts are skipped.
+
+Images resolve to the rendered source: currentSrc → src (unless it is a data:/blank/spacer lazy
+placeholder) → data-src / data-lazy-src / data-original → largest srcset or data-srcset candidate →
+<picture><source srcset>.
+
+## Block construction rules
+
+- A <blockquote> made only of <p>s yields one `blockquote` block per paragraph (tag P); a quote with
+  its own text (plus <footer>/<cite> attribution) is one block.
+- A <li> holding several <p>/<div>s is one list item (text joined with spaces); nested lists,
+  <pre>, <blockquote>, and <table> inside it are emitted as their own blocks. A <li> that holds a
+  heading is treated as a card: its heading and paragraphs stand alone.
+- Paragraphs nested in an emitted container are never emitted twice.
+- <pre> keeps newlines and <br> line breaks; copy buttons, line-number gutters, and hidden nodes
+  inside it are dropped. Language comes from language-/lang-/highlight-source- classes on the
+  <pre>, its <code>, or the wrapping element. Short <pre> blocks are kept regardless of
+  minTextLength.
+- Hidden inline nodes (sr-only, aria-hidden, display:none) and soft hyphen / zero-width space /
+  BOM characters are removed from block text. Heading permalink anchors ("#", "¶", icon-only,
+  or fragment self-links) render as plain heading text.
+- <figcaption> and <dt> are paragraph candidates.
+- Table cells keep word boundaries between block children and <br>s; nested tables are extracted
+  separately; role=presentation tables are skipped. A table with a <thead>/<th> is a data table
+  even when its cells wrap text in <p> (Sphinx/reST): it renders in flow under its heading and
+  its cell paragraphs are not re-emitted as blocks (unless includeTables is false).
+- "header" compounded with article/post/entry/story (entry-header, post-header) is the content's
+  own header, not chrome.
 
 ## Docs
 

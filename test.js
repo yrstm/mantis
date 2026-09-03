@@ -1328,5 +1328,187 @@ Use the [source docs](https://example.com/source) and the \`billing:read\` scope
     assert.ok(md.includes("- [Alpha story title about distributed systems](https://example.com/alpha-story)"));
   });
 
+  /* ---------- nested block containers, code furniture, inline noise ---------- */
+  const FILL = "Filler sentence that is comfortably long enough to clear the length floor.";
+  const article = (body, head = "") => Mantis.extract(new JSDOM(
+    `<!doctype html><html><head><title>t</title>${head}</head><body><main><article>${body}</article></main></body></html>`,
+    { pretendToBeVisual: true, url: "https://example.com/page" }
+  ).window.document);
+
+  test("multi-paragraph blockquote yields one quoted block per paragraph, no duplicates", () => {
+    const a = article(`<h1>Q</h1><p>${FILL}</p>
+      <blockquote><p>First quoted paragraph that is long enough to keep.</p><p>Second quoted paragraph that is long enough to keep.</p></blockquote>`);
+    const quotes = a.blocks.filter((b) => b.type === "blockquote");
+    assert.strictEqual(quotes.length, 2);
+    assert.strictEqual(a.blocks.filter((b) => /quoted paragraph/.test(b.text)).length, 2);
+    assert.ok(!a.text.includes("keep.Second"), "paragraphs are not fused");
+    const md = Mantis.toMarkdown(a);
+    assert.ok(md.includes("> First quoted paragraph that is long enough to keep.\n\n> Second quoted"));
+  });
+  test("blockquote with its own text and attribution stays one block", () => {
+    const a = article(`<h1>Q</h1><p>${FILL}</p>
+      <blockquote>Quoted words that are long enough to clear the floor.<footer>\u2014 Somebody</footer></blockquote>`);
+    const quotes = a.blocks.filter((b) => b.type === "blockquote");
+    assert.strictEqual(quotes.length, 1);
+    assert.strictEqual(quotes[0].text, "Quoted words that are long enough to clear the floor. \u2014 Somebody");
+  });
+  test("list item with several paragraphs is one item; nested code stays a code block", () => {
+    const a = article(`<h1>L</h1><p>${FILL}</p><ol>
+      <li><p>Step one explains the first thing to do here.</p><p>Step one continues with a second paragraph.</p></li>
+      <li><p>Step two shows a command to run in the shell.</p><pre><code class="language-bash">npm install foo</code></pre></li></ol>`);
+    const items = a.blocks.filter((b) => b.type === "list_item");
+    assert.strictEqual(items.length, 2);
+    assert.strictEqual(items[0].text, "Step one explains the first thing to do here. Step one continues with a second paragraph.");
+    assert.strictEqual(items[1].text, "Step two shows a command to run in the shell.");
+    assert.strictEqual(a.blocks.filter((b) => b.type === "paragraph").length, 1, "cell paragraphs are not re-emitted");
+    const code = a.blocks.find((b) => b.type === "code");
+    assert.strictEqual(code.text, "npm install foo");
+    assert.strictEqual(code.language, "bash");
+  });
+  test("list item that holds a heading is a card: heading and blurb stand alone", () => {
+    const a = article(`<h1>C</h1><p>${FILL}</p><ul>
+      <li><h3>Fast extraction</h3><p>Blurb about speed that is long enough to keep around.</p></li></ul>`);
+    assert.ok(a.blocks.some((b) => b.type === "heading" && b.text === "Fast extraction"));
+    assert.ok(a.blocks.some((b) => b.type === "paragraph" && /Blurb about speed/.test(b.text)));
+    assert.ok(!a.blocks.some((b) => b.type === "list_item"));
+    assert.ok(!a.text.includes("extractionBlurb"));
+  });
+  test("nested lists still nest and short <pre> blocks are kept", () => {
+    const a = article(`<h1>N</h1><p>${FILL}</p><ul><li>Top level item that is long enough to keep here<ul><li>Nested item that is long enough to keep here</li></ul></li></ul><pre>npm i x</pre>`);
+    const items = a.blocks.filter((b) => b.type === "list_item");
+    assert.deepStrictEqual(items.map((b) => b.list.depth), [0, 1]);
+    assert.ok(a.blocks.some((b) => b.type === "code" && b.text === "npm i x"));
+  });
+  test("code blocks drop copy buttons and line-number gutters, keep <br> line breaks, read wrapper language", () => {
+    const a = article(`<h1>K</h1><p>${FILL}</p>
+      <div class="highlight highlight-source-js"><pre><button class="copy">Copy</button><span class="line-numbers" aria-hidden="true">1\n2</span><code>const a = 1;\nconst b = 2;</code></pre></div>
+      <pre>line one<br>line two</pre>`);
+    const code = a.blocks.filter((b) => b.type === "code");
+    assert.strictEqual(code[0].text, "const a = 1;\nconst b = 2;");
+    assert.strictEqual(code[0].language, "js");
+    assert.strictEqual(code[1].text, "line one\nline two");
+  });
+  test("heading permalink anchors and fragment self-links render as plain heading text", () => {
+    const a = article(`<h1>D</h1><p>${FILL}</p>
+      <h2 id="install">Installation<a class="anchor" href="#install" aria-hidden="true">#</a></h2><p>${FILL}</p>
+      <h2><a href="#usage">Usage</a></h2><p>${FILL} Two.</p>
+      <h2 id="cfg">Configuration<a class="hash-link" href="#cfg">\u200b</a></h2><p>${FILL} Three.</p>
+      <h2><a href="/elsewhere">Elsewhere</a></h2><p>${FILL} Four.</p>`);
+    const h2 = a.blocks.filter((b) => b.type === "heading" && b.level === 2);
+    assert.deepStrictEqual(h2.map((b) => b.text), ["Installation", "Usage", "Configuration", "Elsewhere"]);
+    assert.deepStrictEqual(h2.slice(0, 3).map((b) => b.links.length), [0, 0, 0]);
+    assert.strictEqual(h2[3].links.length, 1, "a heading linking elsewhere keeps its link");
+    const md = Mantis.toMarkdown(a);
+    assert.ok(md.includes("## Installation\n"));
+    assert.ok(md.includes("## Usage\n"));
+    assert.ok(md.includes("## [Elsewhere](https://example.com/elsewhere)"));
+  });
+  test("hidden inline nodes and invisible characters are dropped from block text", () => {
+    const a = article(`<h1>H</h1><p>${FILL}</p>
+      <p>Install it with <span class="sr-only">the command </span><code>npm i x</code> and you are done with it.</p>
+      <p>An intro\u00adductory para\u200bgraph that is long enough to clear the floor easily.</p>`);
+    assert.ok(a.text.includes("Install it with npm i x and you are done"));
+    assert.ok(a.text.includes("An introductory paragraph that is long enough"));
+  });
+  test("figcaption and <dt> are block candidates", () => {
+    const a = article(`<h1>F</h1><p>${FILL}</p>
+      <figure><img src="https://cdn.example.com/a.jpg" width="800" height="600" alt="A"><figcaption>Caption text describing the photo in enough detail.</figcaption></figure>
+      <dl><dt>Term</dt><dd>A definition that is long enough to clear the floor here.</dd></dl>`);
+    assert.ok(a.blocks.some((b) => b.tag === "FIGCAPTION" && /Caption text/.test(b.text)));
+    const short = Mantis.extract(new JSDOM(`<html><body><article><p>${FILL}</p><dl><dt>Term</dt><dd>Def.</dd></dl></article></body></html>`).window.document, { minTextLength: 0 });
+    assert.deepStrictEqual(short.blocks.slice(1).map((b) => b.text), ["Term", "Def."]);
+  });
+
+  /* ---------- tables: cell text, nesting, data-vs-layout ---------- */
+  test("table cells with block children keep word boundaries; nested tables are separate", () => {
+    const a = article(`<h1>T</h1><p>${FILL}</p>
+      <table><thead><tr><th>Name</th><th>Description</th></tr></thead>
+      <tbody><tr><td><p>alpha</p><p>beta</p></td><td>Line one<br>Line two</td></tr>
+      <tr><td>1<table><tr><td>inner x</td><td>inner y</td></tr></table></td><td>2</td></tr></tbody></table>`);
+    assert.strictEqual(a.tables.length, 2);
+    assert.deepStrictEqual(a.tables[0].rows, [["alpha beta", "Line one Line two"], ["1", "2"]]);
+    assert.deepStrictEqual(a.tables[1].headers, ["inner x", "inner y"]);
+  });
+  test("role=presentation tables are not data tables", () => {
+    const a = article(`<h1>T</h1><p>${FILL}</p><table role="presentation"><tr><td><p>${FILL} Layout cell.</p></td></tr></table>`);
+    assert.strictEqual(a.tables.length, 0);
+    assert.ok(a.text.includes("Layout cell."), "its prose is still captured as blocks");
+  });
+  test("header-row tables with <p>-wrapped cells are data: positioned in flow, cells not re-emitted", () => {
+    const a = article(`<h1>S</h1><p>${FILL}</p><h2>Ref</h2>
+      <table><thead><tr><th>Name</th><th>Description</th></tr></thead><tbody><tr><td><p>alpha</p></td><td><p>${FILL} In a cell.</p></td></tr></tbody></table>
+      <p>${FILL} Closing.</p>`);
+    assert.ok(!a.blocks.some((b) => /In a cell/.test(b.text)));
+    assert.strictEqual(a.tables[0].position, 2, "anchored under the heading");
+    const md = Mantis.toMarkdown(a);
+    assert.ok(md.indexOf("| Name | Description |") < md.indexOf("Closing."));
+    const noTables = Mantis.extract(new JSDOM(`<html><body><article><h1>S</h1><p>${FILL}</p><table><thead><tr><th>N</th></tr></thead><tbody><tr><td><p>${FILL} In a cell.</p></td></tr></tbody></table></article></body></html>`).window.document, { includeTables: false });
+    assert.ok(noTables.text.includes("In a cell."), "without the table pass the prose is kept as blocks");
+  });
+
+  /* ---------- images: lazy-loading sources ---------- */
+  test("lazy-loaded images resolve to their real source, not the placeholder", () => {
+    const a = article(`<h1>I</h1><p>${FILL}</p>
+      <figure><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-src="https://cdn.example.com/real.jpg" width="800" height="600" alt="Real"></figure>
+      <figure><img src="https://cdn.example.com/blank.gif" data-srcset="https://cdn.example.com/s.jpg 400w, https://cdn.example.com/l.jpg 1200w" width="800" height="600" alt="Set"></figure>
+      <picture><source srcset="https://cdn.example.com/pic.webp"><img alt="Pic" width="800" height="600"></picture>`);
+    assert.deepStrictEqual(a.images.map((i) => i.src), [
+      "https://cdn.example.com/real.jpg", "https://cdn.example.com/l.jpg", "https://cdn.example.com/pic.webp"
+    ]);
+  });
+
+  /* ---------- chrome lexicon: content headers ---------- */
+  test("entry-header / post-header inside the article is content, not chrome", () => {
+    const a = article(`<header class="entry-header"><h1>Header Test Headline</h1><p class="subtitle">A standfirst paragraph that summarises the piece in one line.</p></header>
+      <div class="entry-content"><p>${FILL}</p><p>${FILL} Two.</p></div>`);
+    assert.strictEqual(a.blocks[0].text, "Header Test Headline");
+    assert.ok(a.text.includes("A standfirst paragraph"));
+    const site = Mantis.extract(new JSDOM(`<html><body><div class="site-header"><p>${FILL} Site header noise.</p></div><article><p>${FILL}</p><p>${FILL} Two.</p></article></body></html>`).window.document);
+    assert.ok(!site.text.includes("Site header noise"), "plain header remains chrome");
+  });
+
+  /* ---------- metadata: JSON-LD, DOM byline, dates, title cleanup ---------- */
+  test("JSON-LD supplies byline, dates, and site name when meta tags are absent", () => {
+    const a = article(`<h1>Real Headline Here</h1><p>${FILL}</p><p>${FILL} Two.</p>`,
+      `<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"x"},{"@type":"NewsArticle","headline":"Real Headline Here","author":[{"@type":"Person","name":"Dana Lee"},{"@type":"Person","name":"Kim Ito"}],"datePublished":"2024-05-01T10:00:00Z","dateModified":"2024-05-02T10:00:00Z","publisher":{"@type":"Organization","name":"Acme News"}}]}</script>
+       <script type="application/ld+json">{not json</script>`);
+    assert.strictEqual(a.byline, "Dana Lee, Kim Ito");
+    assert.strictEqual(a.publishedAt, "2024-05-01T10:00:00Z");
+    assert.strictEqual(a.modifiedAt, "2024-05-02T10:00:00Z");
+    assert.strictEqual(a.siteName, "Acme News");
+  });
+  test("meta tags still win over JSON-LD", () => {
+    const a = article(`<h1>M</h1><p>${FILL}</p><p>${FILL} Two.</p>`,
+      `<meta name="author" content="Meta Author"><meta property="article:published_time" content="2020-01-01">
+       <script type="application/ld+json">{"@type":"Article","author":"LD Author","datePublished":"2021-01-01"}</script>`);
+    assert.strictEqual(a.byline, "Meta Author");
+    assert.strictEqual(a.publishedAt, "2020-01-01");
+  });
+  test("visible byline and <time> fill in when no metadata exists; comment authors are ignored", () => {
+    const a = article(`<h1>B</h1>
+      <div class="meta"><span itemprop="author" itemscope><span itemprop="name">Grace Hopper</span></span> <time datetime="2023-11-05">Nov 5</time></div>
+      <p>${FILL}</p><p>${FILL} Two.</p>
+      <div class="comments"><div class="comment"><span class="author">Troll McTroll</span><p>${FILL} Comment.</p></div></div>`);
+    assert.strictEqual(a.byline, "Grace Hopper");
+    assert.strictEqual(a.publishedAt, "2023-11-05");
+    const b = article(`<h1>B</h1><p class="byline">By <a rel="author" href="/u/ada">Ada Lovelace</a> \u00b7 4 min read</p><p>${FILL}</p><p>${FILL} Two.</p>`);
+    assert.strictEqual(b.byline, "Ada Lovelace");
+    const c = article(`<h1>B</h1><p class="byline">By Ada Lovelace, Staff Writer</p><p>${FILL}</p><p>${FILL} Two.</p>`);
+    assert.strictEqual(c.byline, "Ada Lovelace, Staff Writer");
+    assert.ok(!Mantis.toMarkdown(c).includes("By Ada"), "a lead paragraph that is exactly the byline is not printed twice");
+  });
+  test("og:title site suffix/prefix is stripped when the h1 or og:site_name identifies it", () => {
+    const a = article(`<h1>Real Headline Here</h1><p>${FILL}</p><p>${FILL} Two.</p>`,
+      `<meta property="og:title" content="Real Headline Here | Acme Blog"><meta property="og:site_name" content="Acme Blog">`);
+    assert.strictEqual(a.title, "Real Headline Here");
+    assert.strictEqual(Mantis.toMarkdown(a).split("\n").filter((l) => l.startsWith("# ")).length, 1, "the h1 is not printed twice");
+    const b = article(`<h1>Headline Words</h1><p>${FILL}</p><p>${FILL} Two.</p>`, `<meta property="og:title" content="Acme | Headline Words"><meta property="og:site_name" content="Acme">`);
+    assert.strictEqual(b.title, "Headline Words");
+    const c = article(`<h1>Something Else</h1><p>${FILL}</p><p>${FILL} Two.</p>`, `<meta property="og:title" content="Part One - Part Two">`);
+    assert.strictEqual(c.title, "Part One - Part Two", "an unidentified separator leaves og:title verbatim");
+    const d = Mantis.extract(new JSDOM(`<html><head><title>Acme - Headline - Sub</title><meta property="og:site_name" content="Acme"></head><body><article><p>${FILL}</p><p>${FILL} Two.</p></article></body></html>`).window.document);
+    assert.strictEqual(d.title, "Headline - Sub", "document.title drops the site part and keeps inner separators");
+  });
+
   console.log("\n" + passed + " tests passed");
 })().catch((e) => { console.error(e); process.exit(1); });

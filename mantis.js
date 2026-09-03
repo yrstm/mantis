@@ -54,8 +54,22 @@
   var CHROME_CLASS = /(^|[\s_-])(sidebar|newsletter)([\s_]|$)/i;
   var GOOD = /article|body|content|entry|main|markdown|markup|post|story|text|docs|recipe/i;
   var HIDDEN_CLASS = /(^|\s)(hidden|collapsed|visually-hidden|sr-only|screen-reader|u-hidden|is-hidden)(\s|$)/i;
-  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, DD: 1, DIV: 1 };
-  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading", DD: "paragraph", DIV: "paragraph" };
+  var KEEP = { P: 1, BLOCKQUOTE: 1, PRE: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, DD: 1, DT: 1, DIV: 1, FIGCAPTION: 1 };
+  var BLOCK_TYPE = { P: "paragraph", BLOCKQUOTE: "blockquote", PRE: "code", LI: "list_item", H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading", DD: "paragraph", DT: "paragraph", DIV: "paragraph", FIGCAPTION: "paragraph" };
+  var BLOCK_QUERY = "p, blockquote, pre, li, h1, h2, h3, h4, h5, h6, dd, dt, div, figcaption";
+  // sub-structures a captured container never flattens into its own text:
+  // they are emitted as their own blocks (nested lists, code, quotes) or on
+  // the table pass, so flattening them would duplicate content
+  var NESTED = { UL: 1, OL: 1, PRE: 1, BLOCKQUOTE: 1, TABLE: 1 };
+  // heading permalink anchors: "#", "¶", "§", an icon, or no text at all
+  var ANCHOR_TEXT = /^[\s#¶§∞🔗↩︎⚓]*$/;
+  // code-block furniture: line-number gutters (also as a sibling <pre> in a
+  // Pygments-style table cell) and copy buttons inside <pre>
+  var LINE_NUMBERS = /(^|[\s_-])(line-?numbers?|linenos?|lineno|gutter)([\s_-]|$)/i;
+  var CODE_NOISE = /(^|[\s_-])(line-?numbers?|linenos?|lineno|gutter|copy|clipboard|copy-?button)([\s_-]|$)/i;
+  // invisible characters that survive textContent: soft hyphen, zero-width
+  // space, BOM. ZWJ/ZWNJ are kept (emoji sequences, Indic/Persian scripts).
+  var INVISIBLE = /[\u00AD\u200B\uFEFF]/g;
   // app-shell UIs (X/Twitter, Bluesky, Threads, LinkedIn, ...) mark up prose in
   // plain <div>s instead of <p>; a div with only inline-level children reads as
   // a paragraph even though it carries no semantic tag.
@@ -70,7 +84,28 @@
     return true;
   }
 
-  function textOf(el) { return (el && el.textContent || "").replace(/\s+/g, " ").trim(); }
+  function textOf(el) { return (el && el.textContent || "").replace(INVISIBLE, "").replace(/\s+/g, " ").trim(); }
+
+  // Text with whitespace at block boundaries: textContent fuses adjacent
+  // block children ("alphabeta", "Line oneLine two"). Used where a cell or
+  // container legitimately holds block-level children.
+  function blockText(el, skipTables) {
+    var out = "";
+    (function walk(node) {
+      for (var n = node.firstChild; n; n = n.nextSibling) {
+        if (n.nodeType === 3) { out += n.nodeValue; continue; }
+        if (n.nodeType !== 1) continue;
+        if (/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) continue;
+        if (skipTables && n.tagName === "TABLE") continue;
+        if (n.tagName === "BR") { out += " "; continue; }
+        if (INLINE_TAGS[n.tagName]) { walk(n); continue; }
+        out += " ";
+        walk(n);
+        out += " ";
+      }
+    })(el);
+    return out.replace(INVISIBLE, "").replace(/\s+/g, " ").trim();
+  }
 
   function attr(el, name) {
     return el && el.getAttribute ? (el.getAttribute(name) || "").trim() : "";
@@ -178,14 +213,24 @@
   // token is a style value, not a semantic label
   var UTILITY_PREFIX = { bg: 1, text: 1, border: 1, ring: 1, fill: 1, stroke: 1, from: 1, via: 1, to: 1, shadow: 1, outline: 1, divide: 1, placeholder: 1, caret: 1, accent: 1, decoration: 1, backdrop: 1, z: 1, spacing: 1 };
 
+  // "header" compounded with a content noun names the content's own header
+  // (WordPress' entry-header / post-header holding the title, standfirst and
+  // byline), not site chrome
+  var CONTENT_HEADER = /\b(article|post|entry|story)\b.*\bheader\b|\bheader\b.*\b(article|post|entry|story)\b/i;
+
   function chromeSignal(el) {
     var sig = signature(el);
     if (BAD_PHRASE.test(sig)) return true;
     var words = sig.toLowerCase().split(/[^a-z0-9]+/);
+    var contentHeader = null;
     for (var i = 0; i < words.length; i++) {
       var w = words[i];
       if (!w) continue;
       if (i > 0 && UTILITY_PREFIX[words[i - 1]]) continue;
+      if (w === "header") {
+        if (contentHeader === null) contentHeader = CONTENT_HEADER.test(sig);
+        if (contentHeader) continue;
+      }
       if (BAD_WORDS[w]) return true;
     }
     if (!CHROME_CLASS.test(sig)) return false;
@@ -369,10 +414,32 @@
     return parts.join(" > ");
   }
 
+  // "#" / "¶" / icon-only self-links that docs generators hang off headings
+  function isPermalinkAnchor(a) {
+    return a.tagName === "A" && ANCHOR_TEXT.test((a.textContent || "").replace(INVISIBLE, ""));
+  }
+
+  // a heading linking to its own fragment carries no destination worth
+  // keeping; its text is the heading
+  function isFragmentLink(a) {
+    return attr(a, "href").charAt(0) === "#";
+  }
+
+  // an anchor is part of its block's own text unless it sits inside a nested
+  // sub-structure (emitted separately), is hidden, or is heading furniture
+  function ownsInlineNode(el, node, heading) {
+    for (var n = node; n && n !== el; n = n.parentElement) {
+      if (NESTED[n.tagName] || hidden(n)) return false;
+    }
+    return !(heading && (isPermalinkAnchor(node) || isFragmentLink(node)));
+  }
+
   function linksFromElement(el, doc) {
     var out = [];
+    var heading = /^H[1-6]$/.test(el.tagName);
     var links = el.getElementsByTagName("a");
     for (var i = 0; i < links.length; i++) {
+      if (!ownsInlineNode(el, links[i], heading)) continue;
       var t = textOf(links[i]);
       var href = absoluteUrl(doc, attr(links[i], "href"));
       if (!href) continue;
@@ -384,9 +451,15 @@
   // Inline runs preserve link, code, and emphasis structure inside a block.
   // The concatenated run text equals the block's flattened text, so offsets
   // and citations keep working against either view.
-  function inlineRuns(el, doc, skipLists, includeLinks) {
+  // Nested sub-structures (lists, code, quotes, tables) are never flattened
+  // into the container's text: they are emitted as their own blocks. Hidden
+  // inline nodes (sr-only labels, aria-hidden glyphs) and heading permalink
+  // anchors are skipped. Block-level children contribute a word boundary so
+  // <li><p>A</p><p>B</p></li> reads "A B", not "AB".
+  function inlineRuns(el, doc, includeLinks) {
     var runs = [];
     var formatted = false;
+    var heading = /^H[1-6]$/.test(el.tagName);
     function push(type, href, raw) {
       if (!raw) return;
       var last = runs.length ? runs[runs.length - 1] : null;
@@ -397,12 +470,16 @@
     }
     function walk(node, type, href) {
       for (var n = node.firstChild; n; n = n.nextSibling) {
-        if (n.nodeType === 3) { push(type, href, n.nodeValue); continue; }
+        if (n.nodeType === 3) { push(type, href, n.nodeValue.replace(INVISIBLE, "")); continue; }
         if (n.nodeType !== 1) continue;
         var tag = n.tagName;
-        if (skipLists && (tag === "UL" || tag === "OL")) continue;
+        if (NESTED[tag]) continue;
         if (tag === "BR") { push(type, href, " "); continue; }
-        if (type === "text" && tag === "A" && includeLinks) {
+        if (hidden(n)) continue;
+        if (heading && isPermalinkAnchor(n)) continue;
+        var block = !INLINE_TAGS[tag];
+        if (block) push(type, href, " ");
+        if (type === "text" && tag === "A" && includeLinks && !(heading && isFragmentLink(n))) {
           var h = absoluteUrl(doc, attr(n, "href"));
           if (h) { formatted = true; walk(n, "link", h); continue; }
         }
@@ -410,6 +487,7 @@
         if (type === "text" && (tag === "STRONG" || tag === "B")) { formatted = true; walk(n, "strong", ""); continue; }
         if (type === "text" && (tag === "EM" || tag === "I")) { formatted = true; walk(n, "em", ""); continue; }
         walk(n, type, href);
+        if (block) push(type, href, " ");
       }
     }
     walk(el, "text", "");
@@ -435,16 +513,69 @@
     return { runs: kept, text: flat, formatted: formatted };
   }
 
+  // Code text without the furniture highlighters put inside <pre>: copy
+  // buttons, line-number gutters, hidden nodes. Newlines are preserved.
   function rawCodeText(el) {
-    return (el.textContent || "").replace(/^[\r\n]+/, "").replace(/\s+$/, "");
+    var out = "";
+    (function walk(node) {
+      for (var n = node.firstChild; n; n = n.nextSibling) {
+        if (n.nodeType === 3) { out += n.nodeValue; continue; }
+        if (n.nodeType !== 1) continue;
+        if (n.tagName === "BUTTON" || CODE_NOISE.test(classText(n)) || hidden(n)) continue;
+        if (n.tagName === "BR") { out += "\n"; continue; }
+        walk(n);
+      }
+    })(el);
+    return out.replace(/^[\r\n]+/, "").replace(/\s+$/, "");
   }
 
   function codeLanguage(el) {
     var code = el.getElementsByTagName("code")[0];
     var hint = classText(el) + " " + (code ? classText(code) : "") + " " +
-      attr(el, "data-lang") + " " + attr(el, "data-language");
+      attr(el, "data-lang") + " " + attr(el, "data-language") + " " +
+      (code ? attr(code, "data-lang") + " " + attr(code, "data-language") : "");
     var m = /(?:^|\s)(?:language|lang|highlight(?:-source)?)-([\w#+-]+)/i.exec(hint);
-    return m ? m[1].toLowerCase() : "";
+    if (m) return m[1].toLowerCase();
+    // GitHub-style wrapper: <div class="highlight highlight-source-js"><pre>
+    var parent = el.parentElement;
+    var pm = parent && /(?:^|\s)(?:language|lang|highlight-source)-([\w#+-]+)/i.exec(classText(parent));
+    return pm ? pm[1].toLowerCase() : "";
+  }
+
+  // a container's own text: everything except children that are block
+  // candidates in their own right (a <footer> attribution or <cite> directly
+  // inside a <blockquote> is the quote's own text; its <p>s are not)
+  var CANDIDATE_CONTAINER = { DL: 1, FIGURE: 1, SECTION: 1, ARTICLE: 1, HEADER: 1, NAV: 1, ASIDE: 1, MAIN: 1 };
+  function ownInlineText(el) {
+    var out = "";
+    for (var n = el.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === 3) out += n.nodeValue;
+      else if (n.nodeType === 1 && !KEEP[n.tagName] && !NESTED[n.tagName] && !CANDIDATE_CONTAINER[n.tagName]) out += n.textContent;
+    }
+    return out.replace(INVISIBLE, "").replace(/\s+/g, " ").trim();
+  }
+
+  // Does this container carry block-level candidates of its own? Decides
+  // whether the container or its children become blocks.
+  function hasBlockChildren(el) {
+    return !!el.querySelector("p, div, h1, h2, h3, h4, h5, h6, li, dd, dt, pre, blockquote, figcaption");
+  }
+
+  function inLineNumberGutter(el, stopAt) {
+    for (var n = el; n && n !== stopAt; n = n.parentElement) {
+      if (LINE_NUMBERS.test(classText(n))) return true;
+    }
+    return false;
+  }
+
+  // A paragraph-like candidate nested in a <blockquote> the pipeline chose
+  // not to flatten is itself quoted content.
+  function insideBlockquote(el, stopAt) {
+    for (var n = el.parentElement; n && n !== stopAt; n = n.parentElement) {
+      if (n.tagName === "BLOCKQUOTE") return true;
+      if (/^(LI|TD|TH|DD)$/.test(n.tagName)) return false;
+    }
+    return false;
   }
 
   function listMeta(el, stopAt) {
@@ -466,13 +597,48 @@
     return { depth: depth, ordered: ordered, index: index };
   }
 
+  // Per-pass record of elements already emitted as blocks, so their nested
+  // paragraphs are not emitted a second time (a <li> holding two <p>s is one
+  // list item, not one item plus two paragraphs).
+  function emittedSet() {
+    if (typeof WeakMap === "function") {
+      var map = new WeakMap();
+      return { add: function (el) { map.set(el, true); }, has: function (el) { return map.get(el) === true; } };
+    }
+    var list = [];
+    return { add: function (el) { list.push(el); }, has: function (el) { return list.indexOf(el) !== -1; } };
+  }
+
+  function tableKindCache() {
+    if (typeof WeakMap === "function") return new WeakMap();
+    var keys = [], values = [];
+    return {
+      get: function (k) { var at = keys.indexOf(k); return at === -1 ? undefined : values[at]; },
+      set: function (k, v) { keys.push(k); values.push(v); }
+    };
+  }
+
+  // A candidate is consumed when an ancestor (inside the scope) was emitted
+  // as a block and no nested sub-structure boundary separates them: text
+  // inside a <pre> or nested <ul> under an emitted <li> is still its own block.
+  function consumedBy(emitted, el, stopAt) {
+    if (NESTED[el.tagName]) return false;
+    for (var n = el.parentElement; n && n !== stopAt; n = n.parentElement) {
+      if (emitted.has(n)) return true;
+      if (NESTED[n.tagName]) return false;
+    }
+    return false;
+  }
+
   function blocksFrom(scope, stopAt, doc, options, stats) {
     var out = [];
     var used = {};
+    var emitted = emittedSet();
+    var tableKind = tableKindCache();
     // short blocks kept under the most recent captured heading (composite
     // strategy only; 0 disables the allowance and preserves default behavior)
     var headingRun = 0;
-    var nodes = scope.querySelectorAll("p, blockquote, pre, li, h1, h2, h3, h4, h5, h6, dd, div");
+    var nodes = scope.querySelectorAll(BLOCK_QUERY);
     var i;
     for (i = 0; i < nodes.length && out.length < options.maxBlocks; i++) {
       var el = nodes[i];
@@ -480,25 +646,38 @@
       if (el.tagName === "DIV" && !isTextDiv(el)) continue;
       if (hidden(el)) continue;
       if (el !== scope && flagged(el, stopAt || scope, options.__chromeCtx)) continue;
+      if (el !== scope && consumedBy(emitted, el, stopAt || scope)) continue;
+      if (options.includeTables && inDataTableCell(el, stopAt || scope, tableKind)) continue;
       var heading = /^H/.test(el.tagName);
+      var type = BLOCK_TYPE[el.tagName] || "paragraph";
+      var item = el.tagName === "LI";
+      // A <blockquote> made of paragraphs yields one quoted block per
+      // paragraph (its children inherit the type below); a <li> that holds a
+      // heading is a card, not a bullet, so its children stand on their own.
+      // Either way the container is skipped and its descendants are emitted.
+      if (el !== scope && type === "blockquote" && !ownInlineText(el) && hasBlockChildren(el)) continue;
+      if (el !== scope && item && el.querySelector("h1, h2, h3, h4, h5, h6")) continue;
+      if (type === "code" && inLineNumberGutter(el, stopAt || scope)) continue;
       var full = textOf(el);
       if (!full) continue;
-      if (!heading && full.length < options.minTextLength) {
-        var headingAttached = options.headingAttachedMin > 0 && headingRun > 0 &&
+      var headingAttached = false;
+      if (!heading && type !== "code" && full.length < options.minTextLength) {
+        headingAttached = options.headingAttachedMin > 0 && headingRun > 0 &&
           headingRun <= PROFILER.headingAttachedMax && full.length >= options.headingAttachedMin;
         if (!headingAttached) continue;
       }
       if (!heading && linkDensity(el) > 0.5) continue;
-      var type = BLOCK_TYPE[el.tagName] || "paragraph";
-      var item = el.tagName === "LI";
-      // list items keep only their direct text; nested lists become their own blocks
-      var inline = type === "code" ? null : inlineRuns(el, doc, item, options.includeLinks);
+      var inline = type === "code" ? null : inlineRuns(el, doc, options.includeLinks);
       var t = type === "code" ? rawCodeText(el) : inline.text;
       if (!t) continue;
-      if (item && t.length < options.minTextLength) continue;
+      // the container's own text (nested lists/code/quotes excluded, hidden
+      // nodes dropped) must clear the floor on its own
+      if (!heading && type !== "code" && !headingAttached && t.length < options.minTextLength) continue;
+      if (type === "paragraph" && insideBlockquote(el, stopAt || scope)) type = "blockquote";
       var key = normalized(t);
       if (used[key]) continue;
       used[key] = true;
+      emitted.add(el);
       if (heading) headingRun = 1;
       else if (full.length < options.minTextLength) headingRun++;
       else headingRun = 0;
@@ -673,6 +852,43 @@
     return true;
   }
 
+  // lazy-loading placeholders: inline data URIs and the usual blank/spacer
+  // gifs that sit in src until the real image (in a data-* attribute or
+  // srcset) is swapped in
+  var PLACEHOLDER_SRC = /^(?:data:|about:blank)|(?:^|\/)[^/]*(?:blank|spacer|placeholder|lazy|loading|transparent|pixel|1x1)[^/]*\.(?:gif|png|svg)(?:[?#]|$)/i;
+
+  // largest candidate of a srcset ("a.jpg 400w, b.jpg 800w"), else the first
+  function srcsetCandidate(value) {
+    var best = "", bestSize = -1;
+    var parts = (value || "").split(",");
+    for (var i = 0; i < parts.length; i++) {
+      var m = /^\s*(\S+)(?:\s+(\d+(?:\.\d+)?)([wx]))?\s*$/.exec(parts[i]);
+      if (!m) continue;
+      var size = m[2] ? parseFloat(m[2]) : 0;
+      if (size > bestSize) { bestSize = size; best = m[1]; }
+    }
+    return best;
+  }
+
+  // The image the reader actually sees: the browser's resolved currentSrc,
+  // else src unless it is a lazy placeholder with a real source elsewhere.
+  function imageSource(el) {
+    var current = "";
+    try { current = el.currentSrc || ""; } catch (e) { /* not a live element */ }
+    if (current && !PLACEHOLDER_SRC.test(current)) return current;
+    var src = attr(el, "src");
+    if (src && !PLACEHOLDER_SRC.test(src)) return src;
+    var lazy = attr(el, "data-src") || attr(el, "data-lazy-src") || attr(el, "data-original") ||
+      attr(el, "data-actualsrc") || attr(el, "data-url") ||
+      srcsetCandidate(attr(el, "srcset") || attr(el, "data-srcset") || attr(el, "data-lazy-srcset"));
+    if (!lazy) {
+      var picture = el.parentElement;
+      var source = picture && picture.tagName === "PICTURE" ? picture.querySelector("source[srcset], source[data-srcset]") : null;
+      if (source) lazy = srcsetCandidate(attr(source, "srcset") || attr(source, "data-srcset"));
+    }
+    return lazy || src;
+  }
+
   function imagesFrom(scope, doc) {
     var out = [];
     var seen = {};
@@ -680,7 +896,7 @@
     for (var i = 0; i < images.length && out.length < 100; i++) {
       var el = images[i];
       if (hidden(el) || flagged(el, scope)) continue;
-      var src = absoluteUrl(doc, attr(el, "src") || attr(el, "data-src"));
+      var src = absoluteUrl(doc, imageSource(el));
       if (!src || seen[src]) continue;
       if (!contentImage(el, src, scope)) continue;
       seen[src] = true;
@@ -696,6 +912,13 @@
     return out;
   }
 
+  function closestTable(el) {
+    for (var n = el.parentElement; n; n = n.parentElement) {
+      if (n.tagName === "TABLE") return n;
+    }
+    return null;
+  }
+
   function tablesFrom(scope, stats) {
     var out = [];
     var TABLE_CAP = 50;
@@ -703,15 +926,24 @@
     for (var i = 0; i < tables.length && out.length < TABLE_CAP; i++) {
       var table = tables[i];
       if (hidden(table) || flagged(table, scope)) continue;
+      // declared layout tables carry no data
+      if (/^(presentation|none)$/i.test(attr(table, "role"))) continue;
       var rows = [];
       var headers = [];
       var trs = table.getElementsByTagName("tr");
       for (var r = 0; r < trs.length; r++) {
+        // rows of a nested table belong to that table
+        if (closestTable(trs[r]) !== table || hidden(trs[r])) continue;
         var row = [];
-        var cells = trs[r].querySelectorAll("th, td");
-        for (var c = 0; c < cells.length; c++) row.push(textOf(cells[c]));
+        var hasTh = false;
+        var cells = trs[r].children;
+        for (var c = 0; c < cells.length; c++) {
+          if (cells[c].tagName !== "TD" && cells[c].tagName !== "TH") continue;
+          if (cells[c].tagName === "TH") hasTh = true;
+          row.push(blockText(cells[c], true)); // a nested table is its own table
+        }
         if (!row.length) continue;
-        if (!headers.length && trs[r].getElementsByTagName("th").length) headers = row;
+        if (!headers.length && hasTh) headers = row;
         else rows.push(row);
       }
       if (!headers.length && rows.length) headers = rows.shift();
@@ -734,11 +966,36 @@
   // flow, where they would duplicate text already captured as blocks.
   function isDataTableEl(el, scope) {
     if (!el || el.tagName !== "TABLE") return false;
+    if (/^(presentation|none)$/i.test(attr(el, "role"))) return false;
     for (var p = el.parentElement; p && p !== scope; p = p.parentElement) {
       if (p.tagName === "TABLE") return false; // nested table: leave to fallback
     }
-    if (el.querySelector("td p, th p, td table, td ul, td ol, td div, td h1, td h2, td h3")) return false;
+    if (el.querySelector("td table, th table")) return false;
+    var wrapped = !!el.querySelector("td p, td ul, td ol, td div, td h1, td h2, td h3");
+    if (!wrapped) return true;
+    // an explicit header row makes it data even when cells wrap their text
+    // in <p> (Sphinx/reST and many CMSs do this for every cell) - unless a
+    // cell holds long-form prose, which is a layout table (forum posts)
+    if (!el.querySelector("thead, th")) return false;
+    var cells = el.getElementsByTagName("td");
+    for (var c = 0; c < cells.length; c++) {
+      if ((cells[c].textContent || "").length > 600) return false;
+    }
     return true;
+  }
+
+  // Paragraphs inside a data table's cells are captured on the table pass;
+  // emitting them as blocks too would duplicate every long cell.
+  function inDataTableCell(el, stopAt, cache) {
+    for (var n = el.parentElement; n && n !== stopAt; n = n.parentElement) {
+      if (n.tagName !== "TD" && n.tagName !== "TH") continue;
+      var table = closestTable(n);
+      if (!table) return false;
+      var known = cache.get(table);
+      if (known === undefined) { known = isDataTableEl(table, stopAt); cache.set(table, known); }
+      return known;
+    }
+    return false;
   }
 
   // Record where each data table sits relative to the captured blocks so that
@@ -803,9 +1060,146 @@
     return absoluteUrl(doc, attr(el, "href"));
   }
 
-  function siteName(doc) {
-    return meta(doc, "og:site_name") || "";
+  function siteName(doc, ld) {
+    return meta(doc, "og:site_name") || (ld && ld.publisher) || meta(doc, "application-name") || "";
   }
+
+  // Structured data (schema.org JSON-LD) is the most reliable metadata on
+  // publisher pages; article-typed nodes are preferred, then anything that
+  // carries the fields. Never throws: malformed scripts are skipped.
+  var LD_ARTICLE = /Article|Posting|Report|Recipe|HowTo|Review|Question|CreativeWork|WebPage/i;
+
+  function ldString(value) {
+    if (typeof value === "string") return value.replace(/\s+/g, " ").trim().slice(0, 300);
+    if (value && typeof value === "object" && !Array.isArray(value)) return ldString(value.name || value["@value"] || "");
+    return "";
+  }
+
+  function ldNames(value) {
+    if (Array.isArray(value)) {
+      var names = [];
+      for (var i = 0; i < value.length && names.length < 4; i++) {
+        var name = ldString(value[i]);
+        if (name && names.indexOf(name) === -1) names.push(name);
+      }
+      return names.join(", ");
+    }
+    return ldString(value);
+  }
+
+  function jsonLd(doc) {
+    var out = { headline: "", author: "", datePublished: "", dateModified: "", publisher: "" };
+    var scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+    var nodes = [];
+    for (var i = 0; i < scripts.length; i++) {
+      var data;
+      try { data = JSON.parse(scripts[i].textContent || ""); } catch (e) { continue; }
+      var items = Array.isArray(data) ? data : [data];
+      for (var j = 0; j < items.length; j++) {
+        var item = items[j];
+        if (!item || typeof item !== "object") continue;
+        nodes.push(item);
+        var graph = item["@graph"];
+        if (Array.isArray(graph)) for (var g = 0; g < graph.length; g++) if (graph[g] && typeof graph[g] === "object") nodes.push(graph[g]);
+      }
+    }
+    // two passes: article-like nodes first, then any node with the fields
+    for (var pass = 0; pass < 2; pass++) {
+      for (var n = 0; n < nodes.length; n++) {
+        var node = nodes[n];
+        var type = Array.isArray(node["@type"]) ? node["@type"].join(" ") : (node["@type"] || "");
+        if (pass === 0 && !LD_ARTICLE.test(String(type))) continue;
+        if (!out.headline) out.headline = ldString(node.headline);
+        if (!out.author) out.author = ldNames(node.author || node.creator);
+        if (!out.datePublished) out.datePublished = ldString(node.datePublished);
+        if (!out.dateModified) out.dateModified = ldString(node.dateModified);
+        if (!out.publisher) out.publisher = ldString(node.publisher);
+      }
+    }
+    return out;
+  }
+
+  // Visible byline when no metadata names the author: rel/itemprop hooks
+  // first, then the conventional class names, inside the content scope
+  // before the rest of the page. Chrome and comment sections are excluded.
+  var BYLINE_SELECTORS = [
+    '[rel~="author"]',
+    '[itemprop~="author"] [itemprop~="name"]',
+    '[itemprop~="author"]',
+    ".p-author, .author-name, .byline-name, .byline__name, .author__name",
+    '.byline, [class*="byline"]',
+    ".author, .post-author, .entry-author, .article-author"
+  ];
+
+  function cleanByline(text) {
+    text = (text || "").split(/\s+[\u00b7\u2022|]\s+/)[0];
+    text = text.replace(/^\s*(?:by|written by|posted by|author|autor|par|von)\s*[:\u2014\u2013-]?\s+/i, "");
+    text = text.replace(/\s*[,\u00b7\u2022|]\s*$/, "").trim();
+    return text;
+  }
+
+  function domByline(doc, scope, ctx) {
+    var roots = scope ? [scope, doc.body] : [doc.body];
+    for (var r = 0; r < roots.length; r++) {
+      var root = roots[r];
+      if (!root) continue;
+      for (var s = 0; s < BYLINE_SELECTORS.length; s++) {
+        var matches;
+        try { matches = root.querySelectorAll(BYLINE_SELECTORS[s]); } catch (e) { continue; }
+        for (var i = 0; i < matches.length; i++) {
+          var el = matches[i];
+          if (el.tagName === "META" || el.tagName === "LINK") continue;
+          if (hidden(el) || flagged(el, doc.body, ctx)) continue;
+          var text = cleanByline(textOf(el));
+          if (text.length < 2 || text.length > 100) continue;
+          if (/^\d|^(?:\d+\s+)?(?:comments?|replies|shares?|min read|reply|share|follow)\b/i.test(text)) continue;
+          return text;
+        }
+      }
+    }
+    return "";
+  }
+
+  function dateish(value) {
+    value = (value || "").trim();
+    if (!value || value.length > 64) return "";
+    if (/^\d{4}-\d{2}(?:-\d{2})?/.test(value)) return value;
+    return /\d{4}/.test(value) && !isNaN(Date.parse(value)) ? value : "";
+  }
+
+  function metaDate(doc, names) {
+    for (var i = 0; i < names.length; i++) {
+      var value = dateish(meta(doc, names[i]));
+      if (value) return value;
+    }
+    return "";
+  }
+
+  function domDate(doc, scope, ctx, selectors) {
+    var roots = scope ? [scope, doc.body] : [doc.body];
+    for (var r = 0; r < roots.length; r++) {
+      var root = roots[r];
+      if (!root) continue;
+      for (var s = 0; s < selectors.length; s++) {
+        var matches = root.querySelectorAll(selectors[s]);
+        for (var i = 0; i < matches.length; i++) {
+          var el = matches[i];
+          if (el.tagName !== "META" && (hidden(el) || flagged(el, doc.body, ctx))) continue;
+          var value = dateish(attr(el, "datetime") || attr(el, "content") || textOf(el));
+          if (value) return value;
+        }
+      }
+    }
+    return "";
+  }
+
+  // checked after the legacy article:published_time / date and JSON-LD chain
+  var PUBLISHED_META = ["pubdate", "publishdate", "publish_date", "publication_date", "og:published_time",
+    "article:published", "dc.date", "DC.date.issued", "dcterms.created", "dcterms.date", "sailthru.date",
+    "parsely-pub-date", "datePublished"];
+  var MODIFIED_META = ["og:updated_time", "dcterms.modified", "dateModified"];
+  var PUBLISHED_DOM = ['[itemprop~="datePublished"]', "time[pubdate]", "time[datetime]"];
+  var MODIFIED_DOM = ['[itemprop~="dateModified"]'];
 
   function language(doc) {
     return attr(doc.documentElement, "lang") || meta(doc, "language") || "";
@@ -824,12 +1218,65 @@
     return "unknown";
   }
 
-  function cleanTitle(title) {
+  // separators kept at odd indices so the remainder can be rejoined verbatim
+  var TITLE_SEPARATOR = /(\s+(?:[|]|[-\u2013\u2014]|\u00b7|\u00bb|\u203a|::)\s+)/;
+
+  function titleParts(title) {
+    var raw = title.split(TITLE_SEPARATOR);
+    var parts = [];
+    for (var i = 0; i < raw.length; i += 2) parts.push(raw[i]);
+    return { parts: parts, raw: raw };
+  }
+
+  // "Site | Headline" / "Headline | Site": drop the site part, keep the rest
+  function stripSite(title, site) {
+    if (!site) return "";
+    var split = titleParts(title);
+    if (split.parts.length < 2) return "";
+    var siteKey = normalized(site);
+    if (normalized(split.parts[split.parts.length - 1]) === siteKey) return split.raw.slice(0, -2).join("").trim();
+    if (normalized(split.parts[0]) === siteKey) return split.raw.slice(2).join("").trim();
+    return "";
+  }
+
+  function cleanTitle(title, site) {
     title = (title || "").replace(/\s+/g, " ").trim();
     if (!title) return "";
-    var parts = title.split(/\s+(?:[|]|[-\u2013\u2014])\s+/);
+    var stripped = stripSite(title, site);
+    if (stripped) return stripped;
+    var parts = titleParts(title).parts;
     if (parts.length > 1 && parts[0].length >= 8) return parts[0].trim();
     return title;
+  }
+
+  // Metadata titles often carry the site name ("Headline | Site"); the visible
+  // h1 and og:site_name disambiguate. The metadata title is kept verbatim
+  // unless one of its separator-delimited parts is the h1 or the site name.
+  function resolveTitle(metaTitle, h1Text, site) {
+    metaTitle = (metaTitle || "").replace(/\s+/g, " ").trim();
+    if (!metaTitle) return "";
+    var parts = titleParts(metaTitle).parts;
+    if (parts.length < 2) return metaTitle;
+    if (h1Text) {
+      var h1Key = normalized(h1Text);
+      if (h1Key === normalized(metaTitle)) return metaTitle;
+      for (var i = 0; i < parts.length; i++) {
+        if (normalized(parts[i]) === h1Key) return parts[i].trim();
+      }
+    }
+    return stripSite(metaTitle, site) || metaTitle;
+  }
+
+  // first visible, non-chrome h1 (a hidden or masthead h1 is not the headline)
+  function visibleH1(doc, ctx) {
+    var h1s = doc.body ? doc.body.getElementsByTagName("h1") : [];
+    for (var i = 0; i < h1s.length; i++) {
+      if (hidden(h1s[i]) || flagged(h1s[i], doc.body, ctx)) continue;
+      var text = textOf(h1s[i]);
+      if (text) return text;
+    }
+    var any = doc.querySelector("h1");
+    return any ? textOf(any) : "";
   }
 
   function confidence(scopeInfo, scope, paragraphs) {
@@ -1345,8 +1792,11 @@
         escalationRejected = true;
       }
     }
-    var h1 = doc.querySelector("h1");
-    var title = meta(doc, "og:title") || meta(doc, "twitter:title") || (h1 && textOf(h1)) || cleanTitle(doc.title || "");
+    var ld = jsonLd(doc);
+    var site = siteName(doc, ld);
+    var h1Text = visibleH1(doc, chromeCtx);
+    var title = resolveTitle(meta(doc, "og:title") || meta(doc, "twitter:title"), h1Text, site) ||
+      h1Text || ld.headline || cleanTitle(doc.title || "", site);
     // Headline rescue: when the winning scope is an inner body container
     // (Substack's section.body, Medium's section[data-field=body]), the page
     // h1 sits outside the scope and the block stream loses the headline even
@@ -1401,13 +1851,16 @@
     var article = {
       object: "article",
       title: title,
-      byline: meta(doc, "author") || meta(doc, "article:author") || meta(doc, "byl") || meta(doc, "parsely-author") || "",
+      byline: meta(doc, "author") || meta(doc, "article:author") || meta(doc, "byl") || meta(doc, "parsely-author") ||
+        ld.author || domByline(doc, scope, chromeCtx) || "",
       hero: meta(doc, "og:image") || meta(doc, "twitter:image") || meta(doc, "twitter:image:src") || "",
       url: pageUrl,
       canonicalUrl: canonicalUrl(doc) || pageUrl,
-      siteName: siteName(doc),
-      publishedAt: meta(doc, "article:published_time") || meta(doc, "date") || "",
-      modifiedAt: meta(doc, "article:modified_time") || meta(doc, "lastmod") || "",
+      siteName: site,
+      publishedAt: meta(doc, "article:published_time") || meta(doc, "date") || ld.datePublished ||
+        metaDate(doc, PUBLISHED_META) || domDate(doc, scope, chromeCtx, PUBLISHED_DOM) || "",
+      modifiedAt: meta(doc, "article:modified_time") || meta(doc, "lastmod") || ld.dateModified ||
+        metaDate(doc, MODIFIED_META) || domDate(doc, scope, chromeCtx, MODIFIED_DOM) || "",
       language: language(doc),
       text: paragraphs.join("\n\n"),
       paragraphs: paragraphs,
@@ -1602,6 +2055,32 @@
 
   var HASHES = ["#", "##", "###", "####", "#####", "######"];
 
+  // Lead-block dedup against the rendered title and byline lines. Strict
+  // equality is the fast path; normalized comparison (case, punctuation,
+  // whitespace) is computed lazily and at most once per render.
+  function leadDedup(article) {
+    var titleKey = null, bylineKey = null;
+    return {
+      // the page H1 usually repeats the title; emit it once
+      isTitle: function (block, index) {
+        if (index !== 0 || !article.title || block.type !== "heading" || block.level !== 1) return false;
+        if (block.text === article.title) return true;
+        if (titleKey === null) titleKey = normalized(article.title);
+        return normalized(block.text) === titleKey;
+      },
+      // a lead paragraph that is exactly the byline ("By Dana Lee") repeats
+      // the byline line; one carrying more (a date, a role) is kept
+      isByline: function (block, index) {
+        var byline = article.byline;
+        if (index > 3 || !byline || block.type !== "paragraph" || !block.text) return false;
+        if (block.text.length > byline.length + 8 || block.text.length + 8 < byline.length) return false;
+        if (block.text === byline) return true;
+        if (bylineKey === null) bylineKey = normalized(byline);
+        return normalized(block.text.replace(/^\s*by\s+/i, "")) === bylineKey;
+      }
+    };
+  }
+
   // Render priorities for the "outline" budget: metadata, then headings, then
   // the first content block of each section, then remaining prose, then images.
   function toMarkdown(article, options) {
@@ -1685,6 +2164,7 @@
       var dest = linkDestination(img.src);
       return images === "alt" ? "![" + alt + "](" + dest + ")" : "[" + alt + "](" + dest + ")";
     }
+    var dedup = leadDedup(article);
     var lead = true; // the document lead counts as a section lead
     // a table directly under a heading is that section's lead content
     var flushedUpTo = -1;
@@ -1715,9 +2195,7 @@
     }
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
-      // the page H1 usually repeats the title; emit it once
-      var dupH1 = i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title;
-      if (dupH1) {
+      if (dedup.isTitle(b, i) || dedup.isByline(b, i)) {
         flushInlineThrough(i);
         continue;
       }
@@ -1817,6 +2295,7 @@
       }
     }
     // consecutive list items share one list; nested lists open inside their parent item
+    var dedup = leadDedup(article);
     var stack = [];
     function closeLists(toDepth) {
       while (stack.length > toDepth) {
@@ -1827,7 +2306,7 @@
     }
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
-      if (i === 0 && article.title && b.type === "heading" && b.level === 1 && b.text === article.title) continue;
+      if (dedup.isTitle(b, i) || dedup.isByline(b, i)) continue;
       if (b.type === "list_item") {
         var want = (b.list ? b.list.depth : 0) + 1;
         var kind = b.list && b.list.ordered ? "ol" : "ul";

@@ -574,5 +574,62 @@
         "#app h1"
       ]
     }
+  },
+  {
+    "name": "nested blocks (WordPress/Sphinx-style article)",
+    "file": "nested-blocks.html",
+    "expected": [
+      "Nested standfirst paragraph",
+      "Nested opening paragraph",
+      "Nested quote paragraph one",
+      "Nested quote paragraph two",
+      "Installation steps",
+      "Nested step one paragraph explains the first thing to do in the shell. Nested step one continuation paragraph",
+      "acme install --nested",
+      "Nested figure caption",
+      "Option reference",
+      "Nested closing paragraph"
+    ],
+    "forbidden": [
+      "Copy",
+      "Nested footer tags",
+      "Nested site footer",
+      "Installation steps#",
+      "shell.Nested"
+    ],
+    "metadata": {
+      "title": "Nested Blocks Guide",
+      "byline": "Quinn Author",
+      "siteName": "Acme Engineering",
+      "publishedAt": "2025-03-04T09:00:00Z",
+      "modifiedAt": "2025-03-05T09:00:00Z"
+    },
+    "counts": {
+      "Nested quote paragraph one": 1,
+      "Nested step one paragraph": 1,
+      "Nested standfirst": 1
+    },
+    "markdown": [
+      "> Nested quote paragraph one is long enough to be kept as quoted content.\n\n> Nested quote paragraph two",
+      "## Installation steps\n\n1. Nested step one paragraph",
+      "```shell\nacme install --nested\n```",
+      "## Option reference\n\n| Option | Meaning |\n| --- | --- |\n| nested-alpha nested-beta | First line Second line |"
+    ],
+    "diagnostics": {
+      "minConfidence": 0.7,
+      "scopeTag": "ARTICLE",
+      "strategy": "article"
+    },
+    "pageType": "docs",
+    "gold": {
+      "include": [
+        "article.post .entry-header",
+        "article.post .entry-content"
+      ],
+      "exclude": [
+        ".copy-button",
+        ".line-numbers"
+      ]
+    }
   }
 ]
